@@ -1,6 +1,6 @@
 import { Editor } from './Editor';
 import { Toolbar } from './Toolbar';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditor, EditorContent, Editor as TiptapEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
@@ -12,10 +12,19 @@ interface WritePadProps {
   initialContent?: string;
   onChange?: (content: string) => void;
   onEditorReady?: (editor: TiptapEditor) => void;
+  documentTitle?: string;
+  onDocumentTitleChange?: (newTitle: string) => void;
 }
 
-export const WritePad = ({ initialContent = '<p></p>', onChange, onEditorReady }: WritePadProps) => {
+export const WritePad = ({ 
+  initialContent = '<p></p>', 
+  onChange, 
+  onEditorReady,
+  documentTitle = 'Untitled',
+  onDocumentTitleChange
+}: WritePadProps) => {
   const [wordCount, setWordCount] = useState(0);
+  const [content, setContent] = useState(initialContent);
 
   const editor = useEditor({
     extensions: [
@@ -32,6 +41,7 @@ export const WritePad = ({ initialContent = '<p></p>', onChange, onEditorReady }
     content: initialContent,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
+      setContent(html);
       onChange?.(html);
       
       // Update word count
@@ -81,7 +91,13 @@ export const WritePad = ({ initialContent = '<p></p>', onChange, onEditorReady }
 
   return (
     <div className="editor-container">
-      <Toolbar editor={editor} />
+      <Toolbar 
+        editor={editor} 
+        documentTitle={documentTitle}
+        onDocumentTitleChange={onDocumentTitleChange}
+        currentContent={content}
+        onLoadDocument={onChange}
+      />
       <div className="min-h-[400px] bg-black">
         <div className="prose prose-invert max-w-none">
           {editor && (

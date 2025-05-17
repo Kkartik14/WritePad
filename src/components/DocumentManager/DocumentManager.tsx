@@ -33,7 +33,7 @@ export const DocumentManager = ({
     if (propDocumentTitle && propDocumentTitle !== documentTitle) {
       setDocumentTitle(propDocumentTitle);
     }
-  }, [propDocumentTitle]);
+  }, [propDocumentTitle, documentTitle]);
 
   useEffect(() => {
     // Load documents from local storage on component mount
@@ -98,22 +98,22 @@ export const DocumentManager = ({
           type="text"
           value={documentTitle}
           onChange={handleTitleChange}
-          className="px-2 py-1 border rounded flex-grow font-medium"
+          className="px-2 py-1 bg-hover-bg border border-border-color rounded flex-grow font-medium text-foreground"
           placeholder="Document title"
         />
         <button 
-          className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded flex items-center gap-1"
+          className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-1"
           onClick={saveDocument}
         >
           <Save className="w-4 h-4" />
           <span>Save</span>
         </button>
         <button 
-          className="p-2 bg-gray-200 hover:bg-gray-300 rounded flex items-center gap-1"
+          className="p-2 bg-hover-bg hover:bg-border-color rounded flex items-center gap-1 text-text-muted hover:text-foreground"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
         >
           <FileText className="w-4 h-4" />
-          <span>Documents</span>
+          <span>Docs</span>
         </button>
         <ExportOptions 
           content={currentContent}
@@ -123,10 +123,10 @@ export const DocumentManager = ({
       </div>
 
       {isMenuOpen && (
-        <div className="absolute top-full left-0 right-0 bg-white border rounded-lg shadow-lg mt-1 z-10">
-          <div className="p-2 border-b">
+        <div className="absolute top-full left-0 right-0 bg-black border border-border-color rounded-lg shadow-lg mt-1 z-10">
+          <div className="p-2 border-b border-border-color">
             <button 
-              className="w-full text-left p-2 hover:bg-gray-100 rounded flex items-center gap-2"
+              className="w-full text-left p-2 hover:bg-hover-bg rounded flex items-center gap-2 text-text-muted hover:text-foreground"
               onClick={createNewDocument}
             >
               <Plus className="w-4 h-4" />
@@ -135,25 +135,25 @@ export const DocumentManager = ({
           </div>
           <div className="max-h-60 overflow-auto">
             {documents.length === 0 ? (
-              <p className="p-4 text-center text-gray-500">No saved documents</p>
+              <p className="p-4 text-center text-text-muted">No saved documents</p>
             ) : (
               documents.map(doc => (
                 <div 
                   key={doc.id}
-                  className="p-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
+                  className="p-2 hover:bg-hover-bg cursor-pointer flex justify-between items-center"
                   onClick={() => loadDocument(doc)}
                 >
                   <div>
-                    <p className="font-medium">{doc.title}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="font-medium text-foreground">{doc.title}</p>
+                    <p className="text-xs text-text-muted">
                       {new Date(doc.lastModified).toLocaleString()}
                     </p>
                   </div>
                   <button
-                    className="p-1 hover:bg-red-100 rounded"
+                    className="p-1 hover:bg-red-900 rounded"
                     onClick={(e) => deleteDocument(doc.id, e)}
                   >
-                    <Trash className="w-4 h-4 text-red-500" />
+                    <Trash className="w-4 h-4 text-red-400" />
                   </button>
                 </div>
               ))

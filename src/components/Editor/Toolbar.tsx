@@ -1,15 +1,29 @@
 import { Editor } from '@tiptap/react';
 import { 
   Bold, Italic, List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Heading1, Heading2,
-  Code, Quote, Underline, StrikethroughIcon, Undo, Redo
+  Code, Quote, Underline, StrikethroughIcon, Undo, Redo, Save, FileText
 } from 'lucide-react';
 import { ShortcutsHelp } from './ShortcutsHelp';
+import { useState } from 'react';
+import { DocumentManager } from '../DocumentManager';
 
 interface ToolbarProps {
   editor: Editor | null;
+  documentTitle?: string;
+  onDocumentTitleChange?: (newTitle: string) => void;
+  currentContent?: string;
+  onLoadDocument?: (content: string) => void;
 }
 
-export const Toolbar = ({ editor }: ToolbarProps) => {
+export const Toolbar = ({ 
+  editor, 
+  documentTitle, 
+  onDocumentTitleChange,
+  currentContent,
+  onLoadDocument
+}: ToolbarProps) => {
+  const [showDocManager, setShowDocManager] = useState(false);
+
   if (!editor) {
     return null;
   }
@@ -145,6 +159,32 @@ export const Toolbar = ({ editor }: ToolbarProps) => {
       >
         <Redo className="w-5 h-5" />
       </button>
+      
+      {currentContent && onLoadDocument && (
+        <div className="relative ml-auto">
+          <button
+            onClick={() => setShowDocManager(!showDocManager)}
+            className="toolbar-button p-2 rounded hover:bg-hover-bg"
+            title="Document Manager"
+          >
+            <FileText className="w-5 h-5" />
+          </button>
+          
+          {showDocManager && (
+            <div className="absolute right-0 top-full mt-2 bg-black border border-border-color rounded shadow-lg z-50 w-64">
+              <div className="p-2">
+                <DocumentManager
+                  currentContent={currentContent}
+                  onLoadDocument={onLoadDocument}
+                  editor={editor}
+                  documentTitle={documentTitle}
+                  onDocumentTitleChange={onDocumentTitleChange}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       
       <div className="ml-auto">
         <ShortcutsHelp />

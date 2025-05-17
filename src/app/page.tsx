@@ -172,38 +172,11 @@ export default function Home() {
             initialContent={content}
             onChange={handleContentChange}
             onEditorReady={setEditor}
-          />
-        </div>
-      </div>
-
-      {/* Right Sidebar */}
-      <div className="right-sidebar w-64 flex flex-col">
-        <div className="p-4 border-b border-border-color">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted">
-            Document Context
-          </h2>
-        </div>
-        <div className="flex-1 overflow-y-auto no-scrollbar p-4">
-          <DocumentManager 
-            currentContent={content}
-            onLoadDocument={(newContent) => {
-              setContent(newContent);
-              handleContentChange(newContent);
-            }}
-            editor={editor}
             documentTitle={activeTab.title}
             onDocumentTitleChange={(newTitle) => {
               handleRenameTab(activeTabId, newTitle);
             }}
           />
-        </div>
-        <div className="p-4 border-t border-border-color flex justify-between">
-          <button className="p-2 hover:bg-hover-bg rounded text-text-muted hover:text-foreground">
-            <Settings className="w-5 h-5" />
-          </button>
-          <button className="p-2 hover:bg-hover-bg rounded text-text-muted hover:text-foreground">
-            <HelpCircle className="w-5 h-5" />
-          </button>
         </div>
       </div>
     </div>
