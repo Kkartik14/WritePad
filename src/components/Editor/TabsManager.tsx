@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Plus, X, MoreHorizontal } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, X } from 'lucide-react';
 
 export interface Tab {
   id: string;
@@ -22,105 +22,86 @@ export const TabsManager = ({
   onTabChange,
   onTabAdd,
   onTabDelete,
-  onTabRename
+  onTabRename,
 }: TabsManagerProps) => {
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
-  const [editedTitle, setEditedTitle] = useState('');
+  const [editingTitle, setEditingTitle] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleTabClick = (tabId: string) => {
-    if (editingTabId === null) {
-      onTabChange(tabId);
+  useEffect(() => {
+    if (editingTabId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
     }
+  }, [editingTabId]);
+
+  const handleDoubleClick = (tab: Tab) => {
+    setEditingTabId(tab.id);
+    setEditingTitle(tab.title);
   };
 
-  const startRenaming = (tabId: string, title: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingTabId(tabId);
-    setEditedTitle(title);
-  };
-
-  const handleRenameSubmit = (tabId: string) => {
-    if (editedTitle.trim()) {
-      onTabRename(tabId, editedTitle);
+  const handleInputBlur = () => {
+    if (editingTabId && editingTitle.trim()) {
+      onTabRename(editingTabId, editingTitle.trim());
     }
     setEditingTabId(null);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, tabId: string) => {
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleRenameSubmit(tabId);
+      handleInputBlur();
     } else if (e.key === 'Escape') {
       setEditingTabId(null);
     }
   };
 
-  // Handle clicking outside the input
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      // Only handle click outside if we're editing a tab
-      if (editingTabId && inputRef.current && !inputRef.current.contains(event.target as Node)) {
-        handleRenameSubmit(editingTabId);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [editingTabId, editedTitle]);
-
-  const handleDeleteTab = (tabId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    onTabDelete(tabId);
-  };
-
   return (
-    <div className="flex items-center border-b overflow-x-auto scrollbar-hide bg-gray-50">
+    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
       {tabs.map((tab) => (
         <div
           key={tab.id}
-          className={`flex items-center px-4 py-3 cursor-pointer border-r relative min-w-[120px] max-w-[200px] transition-colors duration-150 ${
-            tab.id === activeTabId 
-              ? 'bg-white font-medium border-b-2 border-b-blue-500' 
-              : 'bg-gray-50 hover:bg-gray-100 text-gray-600'
+          className={`tab group flex items-center min-w-[120px] max-w-[200px] h-8 px-3 rounded-t cursor-pointer ${
+            tab.id === activeTabId ? 'active' : ''
           }`}
-          onClick={() => handleTabClick(tab.id)}
+          onClick={() => onTabChange(tab.id)}
         >
           {editingTabId === tab.id ? (
             <input
               ref={inputRef}
-              className="w-full bg-white border px-1 py-0.5 outline-none rounded"
-              value={editedTitle}
-              onChange={(e) => setEditedTitle(e.target.value)}
-              onKeyDown={(e) => handleKeyDown(e, tab.id)}
-              onMouseDown={(e) => e.stopPropagation()}
-              autoFocus
+              type="text"
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
+              onBlur={handleInputBlur}
+              onKeyDown={handleInputKeyDown}
+              className="w-full bg-transparent border-none outline-none"
             />
           ) : (
-            <div className="flex items-center justify-between w-full">
-              <span 
-                className="truncate flex-1"
-                title={tab.title}
-                onDoubleClick={(e) => startRenaming(tab.id, tab.title, e)}
+            <>
+              <span
+                className="flex-1 truncate"
+                onDoubleClick={() => handleDoubleClick(tab)}
               >
                 {tab.title}
               </span>
-              <button
-                className="ml-2 hover:bg-gray-200 rounded p-0.5 opacity-60 hover:opacity-100"
-                onClick={(e) => handleDeleteTab(tab.id, e)}
-                title="Close tab"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+              {tabs.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTabDelete(tab.id);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 ml-2 p-0.5 hover:bg-hover-bg rounded"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </>
           )}
         </div>
       ))}
       <button
-        className="px-3 py-3 hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors duration-150"
         onClick={onTabAdd}
-        title="Add new tab"
+        className="p-1 hover:bg-hover-bg rounded"
+        title="New Tab"
       >
         <Plus className="w-4 h-4" />
       </button>

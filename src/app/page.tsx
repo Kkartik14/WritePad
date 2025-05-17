@@ -5,6 +5,7 @@ import { WritePad } from '../components/Editor';
 import { DocumentManager } from '../components/DocumentManager';
 import { Editor } from '@tiptap/react';
 import { TabsManager, Tab } from '../components/Editor/TabsManager';
+import { FileText, Settings, HelpCircle } from 'lucide-react';
 
 export default function Home() {
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -19,6 +20,38 @@ export default function Home() {
   const activeTab = tabs.find(tab => tab.id === activeTabId) || tabs[0];
   const [content, setContent] = useState(activeTab.content);
   
+  // Handle tab change
+  const handleTabChange = useCallback((tabId: string) => {
+    // Save current content before switching
+    setTabs(prevTabs => 
+      prevTabs.map(tab => 
+        tab.id === activeTabId 
+          ? { ...tab, content } 
+          : tab
+      )
+    );
+    
+    // Switch to new tab
+    setActiveTabId(tabId);
+    const newTab = tabs.find(tab => tab.id === tabId);
+    if (newTab) {
+      setContent(newTab.content);
+    }
+  }, [activeTabId, content, tabs]);
+  
+  // Handle content change
+  const handleContentChange = useCallback((newContent: string) => {
+    setContent(newContent);
+    // Save to localStorage
+    const updatedTabs = tabs.map(tab => 
+      tab.id === activeTabId 
+        ? { ...tab, content: newContent } 
+        : tab
+    );
+    localStorage.setItem('writepad-tabs', JSON.stringify(updatedTabs));
+    setTabs(updatedTabs);
+  }, [activeTabId, tabs]);
+  
   // Load tabs from localStorage on mount
   useEffect(() => {
     const savedTabs = localStorage.getItem('writepad-tabs');
@@ -28,16 +61,12 @@ export default function Home() {
         if (Array.isArray(parsedTabs) && parsedTabs.length > 0) {
           setTabs(parsedTabs);
           const savedActiveTabId = localStorage.getItem('writepad-active-tab-id');
-          // Make sure the saved active tab exists in the saved tabs
           if (savedActiveTabId && parsedTabs.some(tab => tab.id === savedActiveTabId)) {
             setActiveTabId(savedActiveTabId);
             const activeTab = parsedTabs.find(tab => tab.id === savedActiveTabId);
             if (activeTab) {
               setContent(activeTab.content);
             }
-          } else {
-            setActiveTabId(parsedTabs[0].id);
-            setContent(parsedTabs[0].content);
           }
         }
       } catch (e) {
@@ -46,99 +75,36 @@ export default function Home() {
     }
   }, []);
   
-  // Save tabs to localStorage whenever they change
+  // Save active tab ID to localStorage
   useEffect(() => {
-    // Save current content to active tab before saving
-    const updatedTabs = tabs.map(tab => 
-      tab.id === activeTabId 
-        ? { ...tab, content } 
-        : tab
-    );
-    
-    localStorage.setItem('writepad-tabs', JSON.stringify(updatedTabs));
     localStorage.setItem('writepad-active-tab-id', activeTabId);
-  }, [tabs, activeTabId, content]);
-  
-  // Update the tab content when the editor content changes
-  const handleContentChange = useCallback((newContent: string) => {
-    setContent(newContent);
-    setTabs(prevTabs => 
-      prevTabs.map(tab => 
-        tab.id === activeTabId 
-          ? { ...tab, content: newContent } 
-          : tab
-      )
-    );
   }, [activeTabId]);
-  
-  // Change active tab
-  const handleTabChange = useCallback((tabId: string) => {
-    if (tabId === activeTabId) return; // Skip if already active
-    
-    // Save current content before switching
-    setTabs(prevTabs => {
-      const updatedTabs = prevTabs.map(tab => 
-        tab.id === activeTabId 
-          ? { ...tab, content } 
-          : tab
-      );
-      
-      // Set the content of the new active tab
-      const newActiveTab = updatedTabs.find(tab => tab.id === tabId);
-      if (newActiveTab) {
-        // Use setTimeout to avoid state update conflicts
-        setTimeout(() => {
-          setContent(newActiveTab.content);
-        }, 0);
-      }
-      
-      return updatedTabs;
-    });
-    
-    // Update active tab id
-    setActiveTabId(tabId);
-  }, [activeTabId, content]);
   
   // Add a new tab
   const handleAddTab = useCallback(() => {
     const newTabId = Date.now().toString();
     const newTab: Tab = {
       id: newTabId,
-      title: `Untitled ${tabs.length + 1}`,
+      title: 'Untitled',
       content: '<p></p>'
     };
     
-    // Save current content before adding new tab
-    setTabs(prevTabs => {
-      const updatedTabs = prevTabs.map(tab => 
-        tab.id === activeTabId 
-          ? { ...tab, content } 
-          : tab
-      );
-      
-      return [...updatedTabs, newTab];
-    });
-    
+    setTabs(prevTabs => [...prevTabs, newTab]);
     setActiveTabId(newTabId);
     setContent('<p></p>');
-  }, [tabs.length, activeTabId, content]);
+  }, []);
   
   // Delete a tab
   const handleDeleteTab = useCallback((tabId: string) => {
-    if (tabs.length <= 1) {
-      return; // Don't delete the last tab
-    }
+    if (tabs.length <= 1) return;
     
     setTabs(prevTabs => {
       const newTabs = prevTabs.filter(tab => tab.id !== tabId);
-      
-      // If we're deleting the active tab, switch to the first tab
       if (tabId === activeTabId) {
         const newActiveTabId = newTabs[0].id;
         setActiveTabId(newActiveTabId);
         setContent(newTabs[0].content);
       }
-      
       return newTabs;
     });
   }, [tabs.length, activeTabId]);
@@ -154,15 +120,70 @@ export default function Home() {
     );
   }, []);
   
-  // Get current tab title for document manager
-  const activeTabTitle = activeTab.title;
-
   return (
-    <main className="flex min-h-screen flex-col items-center p-6 md:p-24">
-      <div className="z-10 max-w-5xl w-full">
-        <h1 className="text-4xl font-bold mb-8 text-center">WritePad</h1>
-        
-        <div className="w-full max-w-4xl mx-auto">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+      {/* Left Sidebar */}
+      <div className="sidebar w-64 flex flex-col">
+        <div className="p-4 border-b border-border-color">
+          <h1 className="text-xl font-semibold text-foreground">WritePad</h1>
+        </div>
+        <div className="flex-1 overflow-y-auto no-scrollbar p-2">
+          {tabs.map(tab => (
+            <div
+              key={tab.id}
+              className={`flex items-center p-2 rounded cursor-pointer mb-1 ${
+                tab.id === activeTabId ? 'bg-hover-bg text-foreground' : 'text-text-muted hover:text-foreground'
+              }`}
+              onClick={() => handleTabChange(tab.id)}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              <span className="truncate">{tab.title}</span>
+            </div>
+          ))}
+        </div>
+        <div className="p-4 border-t border-border-color">
+          <button
+            onClick={handleAddTab}
+            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            New Document
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col bg-black">
+        {/* Tabs */}
+        <div className="flex items-center p-2 bg-black">
+          <TabsManager 
+            tabs={tabs}
+            activeTabId={activeTabId}
+            onTabChange={handleTabChange}
+            onTabAdd={handleAddTab}
+            onTabDelete={handleDeleteTab}
+            onTabRename={handleRenameTab}
+          />
+        </div>
+
+        {/* Editor */}
+        <div className="flex-1 bg-black">
+          <WritePad 
+            key={activeTabId}
+            initialContent={content}
+            onChange={handleContentChange}
+            onEditorReady={setEditor}
+          />
+        </div>
+      </div>
+
+      {/* Right Sidebar */}
+      <div className="right-sidebar w-64 flex flex-col">
+        <div className="p-4 border-b border-border-color">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted">
+            Document Context
+          </h2>
+        </div>
+        <div className="flex-1 overflow-y-auto no-scrollbar p-4">
           <DocumentManager 
             currentContent={content}
             onLoadDocument={(newContent) => {
@@ -170,31 +191,21 @@ export default function Home() {
               handleContentChange(newContent);
             }}
             editor={editor}
-            documentTitle={activeTabTitle}
+            documentTitle={activeTab.title}
             onDocumentTitleChange={(newTitle) => {
               handleRenameTab(activeTabId, newTitle);
             }}
           />
-          
-          <div className="mt-4 border rounded-lg shadow overflow-hidden bg-white">
-            <TabsManager 
-              tabs={tabs}
-              activeTabId={activeTabId}
-              onTabChange={handleTabChange}
-              onTabAdd={handleAddTab}
-              onTabDelete={handleDeleteTab}
-              onTabRename={handleRenameTab}
-            />
-            
-            <WritePad 
-              key={activeTabId} // Force re-render when tab changes
-              initialContent={content}
-              onChange={handleContentChange}
-              onEditorReady={setEditor}
-            />
-          </div>
+        </div>
+        <div className="p-4 border-t border-border-color flex justify-between">
+          <button className="p-2 hover:bg-hover-bg rounded text-text-muted hover:text-foreground">
+            <Settings className="w-5 h-5" />
+          </button>
+          <button className="p-2 hover:bg-hover-bg rounded text-text-muted hover:text-foreground">
+            <HelpCircle className="w-5 h-5" />
+          </button>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

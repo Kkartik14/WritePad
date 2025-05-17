@@ -15,8 +15,8 @@ interface WritePadProps {
 }
 
 export const WritePad = ({ initialContent = '<p></p>', onChange, onEditorReady }: WritePadProps) => {
-  const [content, setContent] = useState(initialContent);
-  
+  const [wordCount, setWordCount] = useState(0);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -29,66 +29,67 @@ export const WritePad = ({ initialContent = '<p></p>', onChange, onEditorReady }
       Strike,
       ShortcutExtension,
     ],
-    content,
+    content: initialContent,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      setContent(html);
       onChange?.(html);
+      
+      // Update word count
+      const text = editor.getText();
+      if (text.trim() === '') {
+        setWordCount(0);
+      } else {
+        setWordCount(text.split(/\s+/).filter(word => word !== '').length);
+      }
+    },
+    onCreate: ({ editor }) => {
+      if (onEditorReady) {
+        onEditorReady(editor);
+      }
+      
+      // Initial word count
+      const text = editor.getText();
+      if (text.trim() === '') {
+        setWordCount(0);
+      } else {
+        setWordCount(text.split(/\s+/).filter(word => word !== '').length);
+      }
     },
     editorProps: {
       attributes: {
-        class: 'prose-writing focus:outline-none',
+        class: 'prose prose-invert max-w-none focus:outline-none text-foreground',
       },
-    }
+    },
+    parseOptions: {
+      preserveWhitespace: true,
+    },
   });
-  
-  // Update content when initialContent prop changes
+
+  // Handle keyboard shortcuts
   useEffect(() => {
-    if (editor && initialContent !== content) {
-      // Only set content if it's significantly different (not just cursor changes)
-      const isSignificantChange = 
-        initialContent.replace(/\s+/g, '') !== content.replace(/\s+/g, '');
-      
-      if (isSignificantChange) {
-        setContent(initialContent);
-        editor.commands.setContent(initialContent);
-        
-        // Focus the editor after content is set
-        setTimeout(() => {
-          editor.commands.focus();
-        }, 10);
-      }
-    }
-  }, [initialContent, content, editor]);
-  
-  // Provide editor instance to parent
-  useEffect(() => {
-    if (editor && onEditorReady) {
-      onEditorReady(editor);
-    }
-  }, [editor, onEditorReady]);
-  
-  // Calculate word count
-  const wordCount = useMemo(() => {
-    if (editor) {
-      const text = editor.getText();
-      if (!text) return 0;
-      return text.split(/\s+/).filter(word => word.length > 0).length;
-    }
-    return 0;
-  }, [editor, content]);
-  
+    if (!editor) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Handle keyboard shortcuts here if needed
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [editor]);
+
   return (
-    <div className="writepad-container bg-white">
+    <div className="editor-container">
       <Toolbar editor={editor} />
-      <div className="p-4 min-h-[400px]">
-        <div className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl mx-auto">
+      <div className="min-h-[400px] bg-black">
+        <div className="prose prose-invert max-w-none">
           {editor && (
             <EditorContent editor={editor} />
           )}
         </div>
       </div>
-      <div className="px-4 py-2 border-t text-sm text-gray-500 flex justify-between items-center">
+      <div className="py-2 text-sm text-text-muted flex justify-between items-center bg-black">
         <div>
           {wordCount} {wordCount === 1 ? 'word' : 'words'}
         </div>

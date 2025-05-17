@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #000000;
+  --foreground: #ffffff;
+  --sidebar-bg: #0a0a0a;
+  --border-color: #1f1f1f;
+  --hover-bg: #1a1a1a;
+  --editor-bg: #000000;
+  --text-muted: #a0a0a0;
+  --toolbar-bg: #000000;
+  --modal-bg: #121212;
+  --kbd-bg: #1a1a1a;
+  --kbd-border: #2a2a2a;
+  --kbd-text: #ffffff;
 }
 
 @theme inline {
@@ -22,5 +32,124 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+}
+
+.main-content {
+  background: var(--editor-bg);
+}
+
+.right-sidebar {
+  background: var(--sidebar-bg);
+  border-left: 1px solid var(--border-color);
+}
+
+.tab {
+  border: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
+  color: var(--text-muted);
+}
+
+.tab:hover {
+  background: var(--hover-bg);
+  color: var(--foreground);
+}
+
+.tab.active {
+  background: var(--editor-bg);
+  border-bottom-color: var(--editor-bg);
+  color: var(--foreground);
+}
+
+.editor-toolbar {
+  background: var(--toolbar-bg);
+  border: none;
+}
+
+.ProseMirror {
+  min-height: calc(100vh - 120px);
+  padding: 2rem;
+  outline: none !important;
+  color: var(--foreground) !important;
+  background: var(--editor-bg);
+  max-width: none !important;
+}
+
+.ProseMirror p {
+  margin: 0.5em 0;
+}
+
+.ProseMirror p.is-empty::before {
+  color: var(--text-muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Override prose-invert styles */
+.prose-invert {
+  color: var(--foreground) !important;
+  max-width: none !important;
+}
+
+.prose-invert h1,
+.prose-invert h2,
+.prose-invert h3,
+.prose-invert h4,
+.prose-invert h5,
+.prose-invert h6 {
+  color: var(--foreground) !important;
+}
+
+/* Remove any box or container styles from the editor */
+.editor-container {
+  background: var(--editor-bg);
+  border: none;
+  box-shadow: none;
+  width: 100%;
+  height: 100%;
+}
+
+/* Make toolbar buttons visible on black background */
+.toolbar-button {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.toolbar-button:hover {
+  color: var(--foreground);
+  background: var(--hover-bg);
+}
+
+/* Keyboard shortcuts modal styling */
+.shortcuts-modal {
+  background-color: var(--modal-bg);
+  border: 1px solid var(--border-color);
+  color: var(--foreground);
+}
+
+.shortcuts-modal kbd {
+  background-color: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  color: var(--kbd-text);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }

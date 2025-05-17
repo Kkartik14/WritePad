@@ -1,16 +1,17 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
-import { useState } from 'react';
+import Underline from '@tiptap/extension-underline';
+import Strike from '@tiptap/extension-strike';
+import { Toolbar } from './Toolbar';
 
 interface EditorProps {
   initialContent?: string;
   onChange?: (content: string) => void;
+  onEditorReady?: (editor: any) => void;
 }
 
-export const Editor = ({ initialContent = '<p>Start writing...</p>', onChange }: EditorProps) => {
-  const [content, setContent] = useState(initialContent);
-
+export const Editor = ({ initialContent = '<p></p>', onChange, onEditorReady }: EditorProps) => {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -19,22 +20,32 @@ export const Editor = ({ initialContent = '<p>Start writing...</p>', onChange }:
         alignments: ['left', 'center', 'right'],
         defaultAlignment: 'left',
       }),
+      Underline,
+      Strike,
     ],
-    content,
+    content: initialContent,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      setContent(html);
       onChange?.(html);
+    },
+    onCreate: ({ editor }) => {
+      onEditorReady?.(editor);
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-invert focus:outline-none text-foreground',
+      },
+    },
+    parseOptions: {
+      preserveWhitespace: true,
     },
   });
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
-      <div className="p-4 min-h-[400px]">
-        <EditorContent 
-          editor={editor} 
-          className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none"
-        />
+    <div className="editor-container">
+      <Toolbar editor={editor} />
+      <div className="flex-1">
+        <EditorContent editor={editor} />
       </div>
     </div>
   );
