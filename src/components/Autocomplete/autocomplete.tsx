@@ -1,36 +1,35 @@
-'use client'; // For Next.js App Router client-side interactivity
-
+'use client';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-// useRouter might not be needed if not navigating, but could be used to trigger search for the completed phrase
-// import { useRouter } from 'next/navigation';
 
-// Interface for dictionary structure
 interface WordDictionary {
   words: string[];
   phrases: string[];
 }
 
-// Interface for suggestion items (simplified for word completion)
 export interface CompletionSuggestion {
   id: string;
-  text: string; // The suggested word or phrase
+  text: string;
   type: 'word' | 'phrase';
 }
 
-// Props for the Autocomplete component
 export interface WordAutocompleteProps {
   dictionaryPath?: string;
   placeholder?: string;
-  minCharsForSuggestion?: number; // Min chars of current word to trigger suggestions
+  minCharsForSuggestion?: number;
   maxSuggestions?: number;
   debounceDelayMs?: number;
   inputClassName?: string;
   dropdownClassName?: string;
   itemClassName?: string;
   activeItemClassName?: string;
-  highlightClassName?: string; // For highlighting match within suggestion (optional)
+  highlightClassName?: string;
   containerClassName?: string;
 }
+
+const createSafeId = (prefix: string, text: string): string => {
+  const sanitizedText = text.replace(/[^a-zA-Z0-9-_]/g, '_').replace(/\s+/g, '-');
+  return `${prefix}-${sanitizedText}`;
+};
 
 const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
   dictionaryPath = '/word-dictionary.json',
@@ -43,7 +42,6 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
   dropdownClassName = 'absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-xl max-h-60 overflow-y-auto',
   itemClassName = 'px-4 py-2 text-sm text-gray-800 hover:bg-gray-100 cursor-pointer',
   activeItemClassName = 'bg-blue-500 text-white hover:bg-blue-600',
-  // highlightClassName = 'font-semibold', // Not actively used in this simple version
 }) => {
   const [inputValue, setInputValue] = useState<string>('');
   const [suggestions, setSuggestions] = useState<CompletionSuggestion[]>([]);
@@ -53,9 +51,7 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  // const router = useRouter(); // If you want to trigger a search on Enter or something
 
-  // --- Debounce Utility ---
   const debounce = <F extends (...args: any[]) => any>(func: F, delay: number) => {
     let timeoutId: ReturnType<typeof setTimeout>;
     return (...args: Parameters<F>): void => {
@@ -64,13 +60,12 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     };
   };
 
-  // --- Fetch word dictionary ---
   useEffect(() => {
     const loadDictionary = async () => {
       try {
         const response = await fetch(dictionaryPath);
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(`HTTP error! status: ${response.status} on path ${dictionaryPath}`);
         }
         setDictionary(await response.json());
       } catch (error) {
@@ -80,7 +75,6 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     loadDictionary();
   }, [dictionaryPath]);
 
-  // --- Get current word/phrase being typed ---
   const getCurrentTypingContext = (text: string): { currentWord: string; prefixText: string, entirePhrase: string } => {
     const lastSpaceIndex = text.lastIndexOf(' ');
     const prefixText = lastSpaceIndex === -1 ? '' : text.substring(0, lastSpaceIndex + 1);
@@ -88,14 +82,24 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     return { currentWord, prefixText, entirePhrase: text };
   };
 
-  // --- Filter suggestions (memoized) ---
   const filterSuggestions = useCallback(
     (currentFullText: string) => {
       const { currentWord, entirePhrase } = getCurrentTypingContext(currentFullText);
       const lowerCurrentWord = currentWord.toLowerCase();
       const lowerEntirePhrase = entirePhrase.toLowerCase();
 
-      if (currentWord.length < minCharsForSuggestion && entirePhrase.length < minCharsForSuggestion) {
+      let canShowSuggestions = false;
+      if (!currentFullText.includes(' ')) {
+        if (currentWord.length >= minCharsForSuggestion) {
+          canShowSuggestions = true;
+        }
+      } else {
+        if (currentWord.length >= minCharsForSuggestion || entirePhrase.length >= minCharsForSuggestion ) {
+            canShowSuggestions = true;
+        }
+      }
+
+      if (!canShowSuggestions || (!dictionary.words.length && !dictionary.phrases.length)) {
         setSuggestions([]);
         setIsDropdownVisible(false);
         return;
@@ -103,23 +107,20 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
 
       let matchedSuggestions: CompletionSuggestion[] = [];
 
-      // Word suggestions (if currentWord is not empty)
-      if (lowerCurrentWord && dictionary.words.length > 0) {
+      if (lowerCurrentWord && lowerCurrentWord.length >= minCharsForSuggestion && dictionary.words.length > 0) {
         const wordSugs = dictionary.words
           .filter(word => word.toLowerCase().startsWith(lowerCurrentWord) && word.toLowerCase() !== lowerCurrentWord)
-          .map(word => ({ id: `word-${word}`, text: word, type: 'word' as 'word' }));
+          .map(word => ({ id: createSafeId('word', word), text: word, type: 'word' as 'word' }));
         matchedSuggestions.push(...wordSugs);
       }
 
-      // Phrase suggestions (based on the entire input so far)
-      if (dictionary.phrases.length > 0) {
+      if (lowerEntirePhrase && lowerEntirePhrase.length >= minCharsForSuggestion && dictionary.phrases.length > 0) {
           const phraseSugs = dictionary.phrases
             .filter(phrase => phrase.toLowerCase().startsWith(lowerEntirePhrase) && phrase.toLowerCase() !== lowerEntirePhrase)
-            .map(phrase => ({id: `phrase-${phrase}`, text: phrase, type: 'phrase' as 'phrase'}));
+            .map(phrase => ({id: createSafeId('phrase', phrase), text: phrase, type: 'phrase' as 'phrase'}));
           matchedSuggestions.push(...phraseSugs);
       }
 
-      // Remove duplicates (e.g. if a word is also start of a phrase) and limit
       const uniqueSuggestions = Array.from(new Map(matchedSuggestions.map(s => [s.text, s])).values());
 
       setSuggestions(uniqueSuggestions.slice(0, maxSuggestions));
@@ -129,13 +130,11 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     [dictionary, minCharsForSuggestion, maxSuggestions]
   );
 
-  // Debounced version for input changes
   const debouncedFilterSuggestions = useCallback(
     debounce(filterSuggestions, debounceDelayMs),
     [filterSuggestions, debounceDelayMs]
   );
 
-  // --- Handle input change event ---
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newText = event.target.value;
     setInputValue(newText);
@@ -147,22 +146,21 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     }
   };
 
-  // --- Handle suggestion item click ---
   const handleItemClick = (suggestion: CompletionSuggestion) => {
     const { prefixText } = getCurrentTypingContext(inputValue);
     let newText = '';
     if (suggestion.type === 'word') {
-      newText = prefixText + suggestion.text + ' '; // Add space after word completion
-    } else { // phrase
-      newText = suggestion.text + ' '; // Add space after phrase completion
+      newText = prefixText + suggestion.text + ' ';
+    } else {
+      newText = suggestion.text + ' ';
     }
 
     setInputValue(newText);
+    setSuggestions([]);
     setIsDropdownVisible(false);
     setActiveIndex(-1);
     searchInputRef.current?.focus();
 
-    // Move cursor to end of input
     setTimeout(() => {
         if (searchInputRef.current) {
             searchInputRef.current.selectionStart = searchInputRef.current.selectionEnd = newText.length;
@@ -170,10 +168,12 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     }, 0);
   };
 
-  // --- Handle keyboard navigation ---
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isDropdownVisible || suggestions.length === 0) {
-      if (event.key === 'Escape') setIsDropdownVisible(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsDropdownVisible(false);
+      }
       return;
     }
 
@@ -187,16 +187,21 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
         setActiveIndex((prevIndex) => (prevIndex - 1 + suggestions.length) % suggestions.length);
         break;
       case 'Enter':
-      case 'Tab': // Use Tab for completion too
         if (activeIndex >= 0 && suggestions[activeIndex]) {
           event.preventDefault();
           handleItemClick(suggestions[activeIndex]);
         } else {
-          // If Enter is pressed without a suggestion selected, maybe submit form or clear suggestions
           setIsDropdownVisible(false);
           setActiveIndex(-1);
-          // If 'Tab' and no suggestion, allow default tab behavior (do nothing here)
-          if (event.key === 'Enter') event.preventDefault();
+        }
+        break;
+      case 'Tab':
+        if (activeIndex >= 0 && suggestions[activeIndex]) {
+          event.preventDefault();
+          handleItemClick(suggestions[activeIndex]);
+        } else {
+          setIsDropdownVisible(false);
+          setActiveIndex(-1);
         }
         break;
       case 'Escape':
@@ -207,7 +212,6 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     }
   };
 
-  // --- Scroll active item into view ---
   useEffect(() => {
     if (activeIndex >= 0 && dropdownRef.current && suggestions[activeIndex]) {
       const activeElementId = suggestions[activeIndex].id;
@@ -218,7 +222,6 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     }
   }, [activeIndex, suggestions]);
 
-  // --- Handle clicks outside to close dropdown ---
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -244,8 +247,12 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={() => {
-            // Optionally show suggestions on focus if input is not empty
-            if (inputValue.trim()) debouncedFilterSuggestions(inputValue);
+            if (inputValue.trim()) {
+                const { currentWord, entirePhrase } = getCurrentTypingContext(inputValue);
+                if (currentWord.length >= minCharsForSuggestion || entirePhrase.length >= minCharsForSuggestion) {
+                    debouncedFilterSuggestions(inputValue);
+                }
+            }
         }}
         placeholder={placeholder}
         className={inputClassName}
@@ -275,7 +282,6 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
               onMouseEnter={() => setActiveIndex(index)}
             >
               {item.text}
-              {/* <span className="text-xs text-gray-400 ml-2">({item.type})</span> */}
             </div>
           ))}
         </div>
