@@ -1,42 +1,35 @@
 'use client';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-
-interface WordDictionary {
-  words: string[];
-  phrases: string[];
-}
-
 export interface CompletionSuggestion {
   id: string;
   text: string;
-  type: 'word' | 'phrase';
 }
 
 export interface WordAutocompleteProps {
-  dictionaryPath?: string;
+  aiApiEndpoint?: string;
   placeholder?: string;
-  minCharsForSuggestion?: number;
+  minCharsForAISuggestion?: number;
   maxSuggestions?: number;
   debounceDelayMs?: number;
   inputClassName?: string;
   dropdownClassName?: string;
   itemClassName?: string;
   activeItemClassName?: string;
-  highlightClassName?: string;
   containerClassName?: string;
 }
 
 const createSafeId = (prefix: string, text: string): string => {
   const sanitizedText = text.replace(/[^a-zA-Z0-9-_]/g, '_').replace(/\s+/g, '-');
-  return `${prefix}-${sanitizedText}`;
+  return `${prefix}-${Date.now()}-${sanitizedText}`; 
 };
 
+
 const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
-  dictionaryPath = '/word-dictionary.json',
+  aiApiEndpoint = '/api/ai-autocomplete',
   placeholder = 'Start typing...',
-  minCharsForSuggestion = 1,
+  minCharsForAISuggestion = 3,
   maxSuggestions = 5,
-  debounceDelayMs = 150,
+  debounceDelayMs = 500,
   containerClassName = 'relative w-full',
   inputClassName = 'w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
   dropdownClassName = 'absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-xl max-h-60 overflow-y-auto',
@@ -45,7 +38,7 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState<string>('');
   const [suggestions, setSuggestions] = useState<CompletionSuggestion[]>([]);
-  const [dictionary, setDictionary] = useState<WordDictionary>({ words: [], phrases: [] });
+  const [isLoading, setIsLoading] = useState<boolean>(false); // For loading state
   const [isDropdownVisible, setIsDropdownVisible] = useState<boolean>(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
 
@@ -60,100 +53,75 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     };
   };
 
-  useEffect(() => {
-    const loadDictionary = async () => {
-      try {
-        const response = await fetch(dictionaryPath);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status} on path ${dictionaryPath}`);
-        }
-        setDictionary(await response.json());
-      } catch (error) {
-        console.error('Could not load word dictionary:', error);
-      }
-    };
-    loadDictionary();
-  }, [dictionaryPath]);
-
-  const getCurrentTypingContext = (text: string): { currentWord: string; prefixText: string, entirePhrase: string } => {
-    const lastSpaceIndex = text.lastIndexOf(' ');
-    const prefixText = lastSpaceIndex === -1 ? '' : text.substring(0, lastSpaceIndex + 1);
-    const currentWord = lastSpaceIndex === -1 ? text : text.substring(lastSpaceIndex + 1);
-    return { currentWord, prefixText, entirePhrase: text };
-  };
-
-  const filterSuggestions = useCallback(
-    (currentFullText: string) => {
-      const { currentWord, entirePhrase } = getCurrentTypingContext(currentFullText);
-      const lowerCurrentWord = currentWord.toLowerCase();
-      const lowerEntirePhrase = entirePhrase.toLowerCase();
-
-      let canShowSuggestions = false;
-      if (!currentFullText.includes(' ')) {
-        if (currentWord.length >= minCharsForSuggestion) {
-          canShowSuggestions = true;
-        }
-      } else {
-        if (currentWord.length >= minCharsForSuggestion || entirePhrase.length >= minCharsForSuggestion ) {
-            canShowSuggestions = true;
-        }
-      }
-
-      if (!canShowSuggestions || (!dictionary.words.length && !dictionary.phrases.length)) {
+  const fetchAISuggestions = useCallback(
+    async (currentQuery: string) => {
+      if (currentQuery.length < minCharsForAISuggestion) {
         setSuggestions([]);
         setIsDropdownVisible(false);
         return;
       }
 
-      let matchedSuggestions: CompletionSuggestion[] = [];
+      setIsLoading(true);
+      try {
+        const response = await fetch(aiApiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: currentQuery }),
+        });
 
-      if (lowerCurrentWord && lowerCurrentWord.length >= minCharsForSuggestion && dictionary.words.length > 0) {
-        const wordSugs = dictionary.words
-          .filter(word => word.toLowerCase().startsWith(lowerCurrentWord) && word.toLowerCase() !== lowerCurrentWord)
-          .map(word => ({ id: createSafeId('word', word), text: word, type: 'word' as 'word' }));
-        matchedSuggestions.push(...wordSugs);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `API error: ${response.status}`);
+        }
+
+        const data: { suggestions: string[] } = await response.json();
+        const aiSugs = (data.suggestions || [])
+            .map(text => ({ id: createSafeId('ai', text), text }))
+            .slice(0, maxSuggestions);
+
+        setSuggestions(aiSugs);
+        setIsDropdownVisible(aiSugs.length > 0);
+        setActiveIndex(-1);
+
+      } catch (error) {
+        console.error('Failed to fetch AI suggestions:', error);
+        setSuggestions([]);
+        setIsDropdownVisible(false);
+      } finally {
+        setIsLoading(false);
       }
-
-      if (lowerEntirePhrase && lowerEntirePhrase.length >= minCharsForSuggestion && dictionary.phrases.length > 0) {
-          const phraseSugs = dictionary.phrases
-            .filter(phrase => phrase.toLowerCase().startsWith(lowerEntirePhrase) && phrase.toLowerCase() !== lowerEntirePhrase)
-            .map(phrase => ({id: createSafeId('phrase', phrase), text: phrase, type: 'phrase' as 'phrase'}));
-          matchedSuggestions.push(...phraseSugs);
-      }
-
-      const uniqueSuggestions = Array.from(new Map(matchedSuggestions.map(s => [s.text, s])).values());
-
-      setSuggestions(uniqueSuggestions.slice(0, maxSuggestions));
-      setIsDropdownVisible(uniqueSuggestions.length > 0);
-      setActiveIndex(-1);
     },
-    [dictionary, minCharsForSuggestion, maxSuggestions]
+    [aiApiEndpoint, minCharsForAISuggestion, maxSuggestions]
   );
 
-  const debouncedFilterSuggestions = useCallback(
-    debounce(filterSuggestions, debounceDelayMs),
-    [filterSuggestions, debounceDelayMs]
+  const debouncedFetchAISuggestions = useCallback(
+    debounce(fetchAISuggestions, debounceDelayMs),
+    [fetchAISuggestions, debounceDelayMs]
   );
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newText = event.target.value;
     setInputValue(newText);
-    if (!newText.trim()) {
+    if (!newText.trim() || newText.length < minCharsForAISuggestion) {
       setSuggestions([]);
       setIsDropdownVisible(false);
+      setIsLoading(false);
     } else {
-      debouncedFilterSuggestions(newText);
+      debouncedFetchAISuggestions(newText);
     }
   };
 
   const handleItemClick = (suggestion: CompletionSuggestion) => {
-    const { prefixText } = getCurrentTypingContext(inputValue);
-    let newText = '';
-    if (suggestion.type === 'word') {
-      newText = prefixText + suggestion.text + ' ';
+    const wordsInInput = inputValue.split(/\s+/);
+    const currentPartialWord = wordsInInput[wordsInInput.length -1];
+    let newText = suggestion.text;
+    if (!suggestion.text.includes(' ') && inputValue.endsWith(currentPartialWord) && !inputValue.endsWith(' ')) {
+        const prefix = inputValue.substring(0, inputValue.length - currentPartialWord.length);
+        newText = prefix + suggestion.text + ' ';
     } else {
-      newText = suggestion.text + ' ';
+        newText = suggestion.text + ' ';
     }
+
 
     setInputValue(newText);
     setSuggestions([]);
@@ -237,7 +205,6 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
     };
   }, []);
 
-
   return (
     <div className={containerClassName}>
       <input
@@ -247,11 +214,10 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={() => {
-            if (inputValue.trim()) {
-                const { currentWord, entirePhrase } = getCurrentTypingContext(inputValue);
-                if (currentWord.length >= minCharsForSuggestion || entirePhrase.length >= minCharsForSuggestion) {
-                    debouncedFilterSuggestions(inputValue);
-                }
+            if (inputValue.trim() && inputValue.length >= minCharsForAISuggestion && suggestions.length > 0) {
+                setIsDropdownVisible(true);
+            } else if (inputValue.trim() && inputValue.length >= minCharsForAISuggestion) {
+                debouncedFetchAISuggestions(inputValue);
             }
         }}
         placeholder={placeholder}
@@ -260,16 +226,18 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={isDropdownVisible && suggestions.length > 0}
-        aria-controls="word-suggestions-listbox"
+        aria-busy={isLoading}
+        aria-controls="ai-suggestions-listbox"
         aria-activedescendant={activeIndex >= 0 && suggestions[activeIndex] ? suggestions[activeIndex].id : undefined}
       />
-      {isDropdownVisible && suggestions.length > 0 && (
+      {isLoading && <div className="p-2 text-xs text-gray-500">Loading suggestions...</div>}
+      {isDropdownVisible && !isLoading && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          id="word-suggestions-listbox"
+          id="ai-suggestions-listbox"
           className={dropdownClassName}
           role="listbox"
-          aria-label="Word and phrase suggestions"
+          aria-label="AI-powered suggestions"
         >
           {suggestions.map((item, index) => (
             <div
@@ -284,6 +252,11 @@ const WordAutocomplete: React.FC<WordAutocompleteProps> = ({
               {item.text}
             </div>
           ))}
+        </div>
+      )}
+       {isDropdownVisible && !isLoading && suggestions.length === 0 && inputValue.length >= minCharsForAISuggestion && (
+        <div className={`${dropdownClassName} ${itemClassName} text-gray-500 italic`}>
+            No suggestions found.
         </div>
       )}
     </div>
