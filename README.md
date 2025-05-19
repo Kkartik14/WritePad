@@ -23,6 +23,10 @@ WritePad is an open-source rich text editor built with Next.js, TipTap, and Tail
   - Save documents locally
   - Open saved documents
   - Export in multiple formats (HTML, Plain Text, Markdown)
+- AI-Powered Document Templates:
+  - Generate document templates by describing what you need
+  - Powered by Llama-3.3-70b model via Groq API
+  - Get started quickly with AI-generated structure
 - Keyboard shortcuts for all formatting options
 - Word count tracking
 - Clean, responsive UI
@@ -47,6 +51,15 @@ yarn install
 # or
 pnpm install
 ```
+
+For AI template generation feature, you'll need a Groq API key:
+
+1. Create an account at [Groq](https://console.groq.com)
+2. Get your API key from the console
+3. Create a `.env.local` file in the root of the project with:
+   ```
+   GROQ_API_KEY=your_groq_api_key_here
+   ```
 
 Then, run the development server:
 

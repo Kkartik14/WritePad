@@ -121,18 +121,18 @@ export default function Home() {
   }, []);
   
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-[#F8F2D8] text-black">
       {/* Left Sidebar */}
-      <div className="sidebar w-64 flex flex-col">
-        <div className="p-4 border-b border-border-color">
-          <h1 className="text-xl font-semibold text-foreground">WritePad</h1>
+      <div className="sidebar w-64 flex flex-col bg-[#F5E5B0] border-r border-[#D0B56F]">
+        <div className="p-4 border-b border-[#D0B56F]">
+          <h1 className="text-xl font-semibold text-black">WritePad</h1>
         </div>
         <div className="flex-1 overflow-y-auto no-scrollbar p-2">
           {tabs.map(tab => (
             <div
               key={tab.id}
               className={`flex items-center p-2 rounded cursor-pointer mb-1 ${
-                tab.id === activeTabId ? 'bg-hover-bg text-foreground' : 'text-text-muted hover:text-foreground'
+                tab.id === activeTabId ? 'bg-[#E0CA80] text-black' : 'text-gray-700 hover:text-black'
               }`}
               onClick={() => handleTabChange(tab.id)}
             >
@@ -141,10 +141,10 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <div className="p-4 border-t border-border-color">
+        <div className="p-4 border-t border-[#D0B56F]">
           <button
             onClick={handleAddTab}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="w-full px-4 py-2 bg-[#A97A53] text-white rounded hover:bg-[#8D6544]"
           >
             New Document
           </button>
@@ -152,9 +152,9 @@ export default function Home() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col bg-black">
+      <div className="flex-1 flex flex-col bg-[#F8F2D8]">
         {/* Tabs */}
-        <div className="flex items-center p-2 bg-black">
+        <div className="flex items-center p-2 bg-[#F5E5B0] border-b border-[#D0B56F]">
           <TabsManager 
             tabs={tabs}
             activeTabId={activeTabId}
@@ -166,7 +166,7 @@ export default function Home() {
         </div>
 
         {/* Editor */}
-        <div className="flex-1 bg-black">
+        <div className="flex-1 bg-[#F8F2D8]">
           <WritePad 
             key={activeTabId}
             initialContent={content}

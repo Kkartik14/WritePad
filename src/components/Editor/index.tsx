@@ -67,7 +67,7 @@ export const WritePad = ({
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-invert max-w-none focus:outline-none text-foreground',
+        class: 'prose prose-invert max-w-none focus:outline-none text-black',
       },
     },
     parseOptions: {
@@ -90,7 +90,7 @@ export const WritePad = ({
   }, [editor]);
 
   return (
-    <div className="editor-container">
+    <div className="editor-container h-full flex flex-col">
       <Toolbar 
         editor={editor} 
         documentTitle={documentTitle}
@@ -98,14 +98,14 @@ export const WritePad = ({
         currentContent={content}
         onLoadDocument={onChange}
       />
-      <div className="min-h-[400px] bg-black">
-        <div className="prose prose-invert max-w-none">
+      <div className="flex-grow min-h-[400px] bg-[#F8F2D8] overflow-y-auto max-h-[calc(100vh-180px)]">
+        <div className="prose max-w-none p-4">
           {editor && (
             <EditorContent editor={editor} />
           )}
         </div>
       </div>
-      <div className="py-2 text-sm text-text-muted flex justify-between items-center bg-black">
+      <div className="py-2 text-sm text-white flex justify-between items-center bg-[#A97A53] px-4">
         <div>
           {wordCount} {wordCount === 1 ? 'word' : 'words'}
         </div>

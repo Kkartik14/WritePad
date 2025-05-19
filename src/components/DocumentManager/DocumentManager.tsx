@@ -98,18 +98,18 @@ export const DocumentManager = ({
           type="text"
           value={documentTitle}
           onChange={handleTitleChange}
-          className="px-2 py-1 bg-hover-bg border border-border-color rounded flex-grow font-medium text-foreground"
+          className="px-2 py-1 bg-[#F8F2D8] border border-[#D0B56F] rounded flex-grow font-medium text-black"
           placeholder="Document title"
         />
         <button 
-          className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-1"
+          className="p-2 bg-[#A97A53] hover:bg-[#8D6544] text-white rounded flex items-center gap-1"
           onClick={saveDocument}
         >
           <Save className="w-4 h-4" />
           <span>Save</span>
         </button>
         <button 
-          className="p-2 bg-hover-bg hover:bg-border-color rounded flex items-center gap-1 text-text-muted hover:text-foreground"
+          className="p-2 bg-[#E0CA80] hover:bg-[#D0BA70] rounded flex items-center gap-1 text-gray-700 hover:text-black"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
         >
           <FileText className="w-4 h-4" />
@@ -123,10 +123,10 @@ export const DocumentManager = ({
       </div>
 
       {isMenuOpen && (
-        <div className="absolute top-full left-0 right-0 bg-black border border-border-color rounded-lg shadow-lg mt-1 z-10">
-          <div className="p-2 border-b border-border-color">
+        <div className="absolute top-full left-0 right-0 bg-[#F5E5B0] border border-[#D0B56F] rounded-lg shadow-lg mt-1 z-10">
+          <div className="p-2 border-b border-[#D0B56F]">
             <button 
-              className="w-full text-left p-2 hover:bg-hover-bg rounded flex items-center gap-2 text-text-muted hover:text-foreground"
+              className="w-full text-left p-2 hover:bg-[#E0CA80] rounded flex items-center gap-2 text-gray-700 hover:text-black"
               onClick={createNewDocument}
             >
               <Plus className="w-4 h-4" />
@@ -135,25 +135,25 @@ export const DocumentManager = ({
           </div>
           <div className="max-h-60 overflow-auto">
             {documents.length === 0 ? (
-              <p className="p-4 text-center text-text-muted">No saved documents</p>
+              <p className="p-4 text-center text-gray-700">No saved documents</p>
             ) : (
               documents.map(doc => (
                 <div 
                   key={doc.id}
-                  className="p-2 hover:bg-hover-bg cursor-pointer flex justify-between items-center"
+                  className="p-2 hover:bg-[#E0CA80] cursor-pointer flex justify-between items-center"
                   onClick={() => loadDocument(doc)}
                 >
                   <div>
-                    <p className="font-medium text-foreground">{doc.title}</p>
-                    <p className="text-xs text-text-muted">
+                    <p className="font-medium text-black">{doc.title}</p>
+                    <p className="text-xs text-gray-700">
                       {new Date(doc.lastModified).toLocaleString()}
                     </p>
                   </div>
                   <button
-                    className="p-1 hover:bg-red-900 rounded"
+                    className="p-1 hover:bg-[#A97A53] rounded"
                     onClick={(e) => deleteDocument(doc.id, e)}
                   >
-                    <Trash className="w-4 h-4 text-red-400" />
+                    <Trash className="w-4 h-4 text-red-600" />
                   </button>
                 </div>
               ))

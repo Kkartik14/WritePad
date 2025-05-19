@@ -107,39 +107,39 @@ export const ExportOptions = ({ content, documentTitle, editor }: ExportOptionsP
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 bg-hover-bg hover:bg-border-color rounded flex items-center gap-1 text-text-muted hover:text-foreground"
+        className="p-2 bg-[#E0CA80] hover:bg-[#D0BA70] rounded flex items-center gap-1 text-gray-700 hover:text-black"
       >
         <Download className="w-4 h-4" />
         <span>Export</span>
       </button>
       
       {isOpen && (
-        <div className="absolute top-full right-0 mt-1 bg-black border border-border-color rounded-lg shadow-lg z-10 w-48">
+        <div className="absolute top-full right-0 mt-1 bg-[#F5E5B0] border border-[#D0B56F] rounded-lg shadow-lg z-10 w-48">
           <div className="p-1">
             <button
               onClick={exportAsHTML}
-              className="w-full text-left p-2 hover:bg-hover-bg rounded flex items-center gap-2 text-text-muted hover:text-foreground"
+              className="w-full text-left p-2 hover:bg-[#E0CA80] rounded flex items-center gap-2 text-gray-700 hover:text-black"
             >
               <FileText className="w-4 h-4" />
               <span>Export as HTML</span>
             </button>
             <button
               onClick={exportAsText}
-              className="w-full text-left p-2 hover:bg-hover-bg rounded flex items-center gap-2 text-text-muted hover:text-foreground"
+              className="w-full text-left p-2 hover:bg-[#E0CA80] rounded flex items-center gap-2 text-gray-700 hover:text-black"
             >
               <FileText className="w-4 h-4" />
               <span>Export as Text</span>
             </button>
             <button
               onClick={exportAsMarkdown}
-              className="w-full text-left p-2 hover:bg-hover-bg rounded flex items-center gap-2 text-text-muted hover:text-foreground"
+              className="w-full text-left p-2 hover:bg-[#E0CA80] rounded flex items-center gap-2 text-gray-700 hover:text-black"
             >
               <Code className="w-4 h-4" />
               <span>Export as Markdown</span>
             </button>
             <button
               onClick={exportAsJSON}
-              className="w-full text-left p-2 hover:bg-hover-bg rounded flex items-center gap-2 text-text-muted hover:text-foreground"
+              className="w-full text-left p-2 hover:bg-[#E0CA80] rounded flex items-center gap-2 text-gray-700 hover:text-black"
             >
               <FileJson className="w-4 h-4" />
               <span>Export as JSON</span>
