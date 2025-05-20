@@ -1,7 +1,7 @@
 import { Editor } from '@tiptap/react';
 import { 
   Bold, Italic, List, ListOrdered, AlignLeft, AlignCenter, AlignRight, Heading1, Heading2,
-  Code, Quote, Underline, StrikethroughIcon, Undo, Redo, Save, FileText, Sparkles
+  Code, Quote, Underline, StrikethroughIcon, Undo, Redo, Save, FileText, Sparkles, Wand2
 } from 'lucide-react';
 import { ShortcutsHelp } from './ShortcutsHelp';
 import { useState } from 'react';
@@ -14,6 +14,8 @@ interface ToolbarProps {
   onDocumentTitleChange?: (newTitle: string) => void;
   currentContent?: string;
   onLoadDocument?: (content: string) => void;
+  autocompleteEnabled?: boolean;
+  onToggleAutocomplete?: () => void;
 }
 
 export const Toolbar = ({ 
@@ -21,7 +23,9 @@ export const Toolbar = ({
   documentTitle, 
   onDocumentTitleChange,
   currentContent,
-  onLoadDocument
+  onLoadDocument,
+  autocompleteEnabled = false,
+  onToggleAutocomplete
 }: ToolbarProps) => {
   const [showDocManager, setShowDocManager] = useState(false);
   const [showAIPrompt, setShowAIPrompt] = useState(false);
@@ -169,6 +173,20 @@ export const Toolbar = ({
       >
         <Redo className="w-5 h-5" />
       </button>
+      
+      <div className="border-r border-[#D0B56F] mx-1 h-6 self-center"></div>
+      
+      {/* Autocomplete Toggle Button */}
+      {onToggleAutocomplete && (
+        <button
+          onClick={onToggleAutocomplete}
+          className={`toolbar-button p-2 rounded ${autocompleteEnabled ? 'bg-[#E0CA80] text-black' : 'text-gray-700'}`}
+          title={autocompleteEnabled ? "Turn off AI autocomplete" : "Turn on AI autocomplete"}
+        >
+          <Wand2 className="w-5 h-5" />
+          <span className="sr-only">AI Autocomplete</span>
+        </button>
+      )}
       
       <div className="border-r border-[#D0B56F] mx-1 h-6 self-center"></div>
       
