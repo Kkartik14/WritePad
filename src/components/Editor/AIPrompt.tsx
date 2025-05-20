@@ -67,23 +67,23 @@ export const AIPrompt = ({ onClose, onGenerateTemplate }: AIPromptProps) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-[#F5E5B0] rounded-lg shadow-xl w-full max-w-md p-6 border border-[#D0B56F]">
+      <div className="bg-[var(--modal-bg)] rounded-lg shadow-xl w-full max-w-md p-6 border border-[var(--border-color)]">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-black">Generate Document Template</h2>
+          <h2 className="text-xl font-semibold text-[var(--foreground)]">Generate Document Template</h2>
           <button 
             onClick={onClose}
-            className="text-gray-700 hover:text-black"
+            className="text-[var(--text-muted)] hover:text-[var(--foreground)]"
           >
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <label className="block mb-2 text-sm text-gray-700">
+          <label className="block mb-2 text-sm text-[var(--text-muted)]">
             Describe the document you want to create:
           </label>
           <textarea
-            className="w-full p-3 bg-[#F8F2D8] border border-[#D0B56F] rounded-md text-black mb-4 focus:outline-none focus:ring-2 focus:ring-[#A97A53]"
+            className="w-full p-3 bg-[var(--editor-bg)] border border-[var(--border-color)] rounded-md text-[var(--foreground)] mb-4 focus:outline-none focus:ring-1 focus:ring-[var(--accent-color)]"
             rows={5}
             placeholder="e.g., A project proposal for a mobile app with sections for overview, goals, timeline, and budget"
             value={prompt}
@@ -97,7 +97,7 @@ export const AIPrompt = ({ onClose, onGenerateTemplate }: AIPromptProps) => {
               {debugInfo && (
                 <details className="mt-2">
                   <summary className="cursor-pointer">Technical details</summary>
-                  <pre className="mt-2 p-2 bg-[#F8F2D8] rounded text-xs overflow-auto whitespace-pre-wrap border border-[#D0B56F]">
+                  <pre className="mt-2 p-2 bg-[var(--editor-bg)] rounded text-xs overflow-auto whitespace-pre-wrap border border-[var(--border-color)]">
                     {debugInfo}
                   </pre>
                 </details>
@@ -109,14 +109,14 @@ export const AIPrompt = ({ onClose, onGenerateTemplate }: AIPromptProps) => {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 hover:text-black mr-2"
+              className="px-4 py-2 text-[var(--text-muted)] hover:text-[var(--foreground)] mr-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-4 py-2 bg-[#A97A53] text-white rounded hover:bg-[#8D6544] disabled:opacity-50"
+              className="px-4 py-2 bg-[var(--accent-color)] text-[var(--foreground)] rounded hover:bg-[var(--accent-hover)] disabled:opacity-50"
             >
               {isLoading ? 'Generating...' : 'Generate Template'}
             </button>

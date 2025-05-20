@@ -98,7 +98,7 @@ export const DocumentManager = ({
           type="text"
           value={documentTitle}
           onChange={handleTitleChange}
-          className="px-2 py-1 bg-[#F8F2D8] border border-[#D0B56F] rounded flex-grow font-medium text-black"
+          className="px-2 py-1 bg-[#F8F2D8] border border-[#D0B56F] rounded flex-grow font-medium text-black focus:outline-none focus:ring-1 focus:ring-[#A97A53]"
           placeholder="Document title"
         />
         <button 

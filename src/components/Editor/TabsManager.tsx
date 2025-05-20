@@ -66,8 +66,8 @@ export const TabsManager = ({
           key={tab.id}
           className={`flex items-center max-w-xs px-3 py-1 rounded-t-lg border border-b-0 ${
             tab.id === activeTabId 
-              ? 'bg-[#F8F2D8] border-[#D0B56F] text-black' 
-              : 'bg-[#F0DCB0] border-[#DBCA9A] text-gray-700 hover:bg-[#E8D396]'
+              ? 'bg-[var(--editor-bg)] border-[var(--border-color)] text-[var(--foreground)]' 
+              : 'bg-[var(--sidebar-bg)] border-[var(--border-color)] text-[var(--text-muted)] hover:bg-[var(--hover-bg)]'
           }`}
         >
           <div
@@ -83,7 +83,7 @@ export const TabsManager = ({
                 onChange={(e) => setEditingTitle(e.target.value)}
                 onBlur={handleInputBlur}
                 onKeyDown={handleInputKeyDown}
-                className="bg-[#F8F2D8] border border-[#D0B56F] px-1 rounded focus:outline-none focus:ring-1 focus:ring-[#A97A53] text-sm"
+                className="bg-[var(--editor-bg)] border border-[var(--border-color)] px-1 rounded focus:outline-none focus:ring-1 focus:ring-[var(--accent-color)] text-sm"
                 autoFocus
               />
             ) : (
@@ -96,7 +96,7 @@ export const TabsManager = ({
                 e.stopPropagation();
                 onTabDelete(tab.id);
               }}
-              className="ml-2 text-gray-500 hover:text-black"
+              className="ml-2 text-[var(--text-muted)] hover:text-[var(--foreground)]"
             >
               <X size={14} />
             </button>
@@ -105,7 +105,7 @@ export const TabsManager = ({
       ))}
       <button
         onClick={onTabAdd}
-        className="p-1 rounded-full bg-[#E0CA80] text-black hover:bg-[#D0BA70] focus:outline-none"
+        className="p-1 rounded-full bg-[var(--selected-bg)] text-[var(--selected-fg)] hover:bg-[var(--hover-bg)] focus:outline-none"
         title="Add new tab"
       >
         <Plus size={16} />

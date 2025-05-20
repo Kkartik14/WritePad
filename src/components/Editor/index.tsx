@@ -3,12 +3,17 @@ import { Toolbar } from './Toolbar';
 import { useState, useEffect } from 'react';
 import { useEditor, EditorContent, Editor as TiptapEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import TextAlign from '@tiptap/extension-text-align';
+import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
-import Strike from '@tiptap/extension-strike';
+import TextAlign from '@tiptap/extension-text-align';
 import { ShortcutExtension } from './extensions/ShortcutExtension';
 import { AutocompleteExtension } from './extensions/AutocompleteExtension';
 import { Wand2 } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
+import { debounce } from 'lodash';
+import { useCompletion } from 'ai/react';
+import { ShortcutsHelp } from './ShortcutsHelp';
+import { ExportOptions } from './ExportOptions';
 
 // Helper function to dispatch debug messages to the UI - matches the one in AutocompleteExtension
 function dispatchDebugMessage(message: string) {
@@ -46,7 +51,6 @@ export const WritePad = ({
         defaultAlignment: 'left',
       }),
       Underline,
-      Strike,
       ShortcutExtension,
       AutocompleteExtension.configure({
         enabled: autocompleteEnabled,
@@ -200,33 +204,34 @@ export const WritePad = ({
         onToggleAutocomplete={() => setAutocompleteEnabled(!autocompleteEnabled)}
       />
       {autocompleteEnabled && (
-        <div className="bg-[#F5E5B0] text-black text-sm p-2 border-b border-[#D0B56F]">
-          <span className="flex items-center">
-            <Wand2 className="w-4 h-4 mr-1" /> 
-            <span>
-              <strong>AI Autocomplete is ON</strong> - As you type, AI will suggest completions. Press <kbd className="px-1 py-0.5 bg-[#E0CA80] rounded border border-[#D0B56F] mx-1">Space</kbd> to accept a suggestion.
+        <div className="bg-[var(--sidebar-bg)] text-[var(--foreground)] text-sm p-2 border-b border-[var(--border-color)]">
+          <div className="flex items-center">
+            <Wand2 className="w-4 h-4 mr-1 text-[var(--accent-color)]" />
+            <div>
+              <strong>AI Autocomplete is ON</strong> - As you type, AI will suggest completions. Press <kbd className="px-1 py-0.5 bg-[var(--kbd-bg)] rounded border border-[var(--kbd-border)] mx-1">Space</kbd> to accept a suggestion.
               {debugMsg && (
                 <span className="ml-2 text-blue-800 bg-blue-100 px-2 py-0.5 rounded text-xs">
                   {debugMsg}
                 </span>
               )}
-            </span>
-          </span>
+            </div>
+          </div>
         </div>
       )}
-      <div className={`flex-grow min-h-[400px] bg-[#F8F2D8] overflow-y-auto max-h-[calc(100vh-180px)] ${autocompleteEnabled ? 'has-suggestion' : ''}`}>
+      <div className={`flex-grow min-h-[400px] bg-[var(--editor-bg)] overflow-y-auto max-h-[calc(100vh-180px)] ${autocompleteEnabled ? 'has-suggestion' : ''}`}>
         <div className="prose max-w-none p-4">
           {editor && (
-            <EditorContent editor={editor} />
+            <EditorContent editor={editor} className="prose prose-slate max-w-none" />
           )}
         </div>
       </div>
-      <div className="py-2 text-sm text-white flex justify-between items-center bg-[#A97A53] px-4">
+      <div className="py-2 text-sm text-[var(--background)] flex justify-between items-center bg-[var(--accent-color)] px-4">
         <div>
-          {wordCount} {wordCount === 1 ? 'word' : 'words'}
+          {wordCount > 0 && `${wordCount} word${wordCount !== 1 ? 's' : ''}`}
         </div>
-        <div>
-          WritePad Editor
+        <div className="flex space-x-2">
+          <ShortcutsHelp />
+          {editor && <ExportOptions editor={editor} />}
         </div>
       </div>
     </div>
