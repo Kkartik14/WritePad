@@ -10,8 +10,6 @@ import { ShortcutExtension } from './extensions/ShortcutExtension';
 import { AutocompleteExtension } from './extensions/AutocompleteExtension';
 import { Wand2 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
-import { debounce } from 'lodash';
-import { useCompletion } from 'ai/react';
 import { ShortcutsHelp } from './ShortcutsHelp';
 import { ExportOptions } from './ExportOptions';
 
@@ -169,26 +167,28 @@ export const WritePad = ({
     };
   }, [editor]);
 
-  // Update debug message periodically
+  // Update debug message with new events
   useEffect(() => {
     if (!autocompleteEnabled) {
       setDebugMsg(null);
       return;
     }
     
-    // Listen for the custom events
-    const handleDebugMessage = (event: CustomEvent) => {
-      setDebugMsg(event.detail);
+    // Listen for the new message events
+    const handleMessage = (event: CustomEvent) => {
+      const { message, type } = event.detail;
+      setDebugMsg(`${type}: ${message}`);
       
-      // Clear message after 3 seconds
+      // Clear message after different durations based on type
+      const duration = type === 'error' ? 5000 : type === 'success' ? 2000 : 3000;
       setTimeout(() => {
         setDebugMsg(null);
-      }, 3000);
+      }, duration);
     };
     
-    document.addEventListener('autocomplete-debug', handleDebugMessage as EventListener);
+    document.addEventListener('autocomplete-message', handleMessage as EventListener);
     return () => {
-      document.removeEventListener('autocomplete-debug', handleDebugMessage as EventListener);
+      document.removeEventListener('autocomplete-message', handleMessage as EventListener);
     };
   }, [autocompleteEnabled]);
 
@@ -207,10 +207,17 @@ export const WritePad = ({
         <div className="bg-[var(--sidebar-bg)] text-[var(--foreground)] text-sm p-2 border-b border-[var(--border-color)]">
           <div className="flex items-center">
             <Wand2 className="w-4 h-4 mr-1 text-[var(--accent-color)]" />
-            <div>
-              <strong>AI Autocomplete is ON</strong> - As you type, AI will suggest completions. Press <kbd className="px-1 py-0.5 bg-[var(--kbd-bg)] rounded border border-[var(--kbd-border)] mx-1">Space</kbd> to accept a suggestion.
+            <div className="flex-1">
+              <strong>AI Autocomplete is ON</strong> - Type naturally and see AI suggestions appear. Press <kbd className="px-1 py-0.5 bg-[var(--kbd-bg)] rounded border border-[var(--kbd-border)] mx-1">Tab</kbd> to accept or <kbd className="px-1 py-0.5 bg-[var(--kbd-bg)] rounded border border-[var(--kbd-border)] mx-1">Esc</kbd> to dismiss.
               {debugMsg && (
-                <span className="ml-2 text-blue-800 bg-blue-100 px-2 py-0.5 rounded text-xs">
+                <span className="ml-2 px-2 py-0.5 rounded text-xs bg-opacity-80" style={{
+                  backgroundColor: debugMsg.startsWith('error') ? '#fee' : 
+                                   debugMsg.startsWith('success') ? '#efe' : 
+                                   debugMsg.startsWith('loading') ? '#fef' : '#eef',
+                  color: debugMsg.startsWith('error') ? '#c33' : 
+                         debugMsg.startsWith('success') ? '#363' : 
+                         debugMsg.startsWith('loading') ? '#636' : '#336'
+                }}>
                   {debugMsg}
                 </span>
               )}
