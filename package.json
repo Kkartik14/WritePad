@@ -28,6 +28,7 @@
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\""
   },
   "dependencies": {
+    "@react-oauth/google": "^0.12.2",
     "@tailwindcss/typography": "^0.5.16",
     "@tiptap/extension-placeholder": "^2.12.0",
     "@tiptap/extension-strike": "^2.12.0",
@@ -37,6 +38,8 @@
     "@tiptap/react": "^2.12.0",
     "@tiptap/starter-kit": "^2.12.0",
     "ai": "^4.3.16",
+    "express": "^5.1.0",
+    "google-auth-library": "^9.15.1",
     "lucide-react": "^0.509.0",
     "next": "15.3.2",
     "react": "^19.0.0",
@@ -48,6 +51,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/express": "^5.0.2",
     "@types/lodash": "^4.17.16",
     "@types/node": "^20",
     "@types/react": "^19",
