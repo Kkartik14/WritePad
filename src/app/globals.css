@@ -1,18 +1,103 @@
 @import "tailwindcss";
 
+/* Default Yellow Theme */
+.theme-yellow {
+  --background: #F8F2D8;
+  --foreground: #000000;
+  --sidebar-bg: #F5E5B0;
+  --border-color: #D0B56F;
+  --hover-bg: #E8D396;
+  --editor-bg: #F8F2D8;
+  --text-muted: #8A7444;
+  --toolbar-bg: #F5E5B0;
+  --modal-bg: #F5E5B0;
+  --accent-color: #A97A53;
+  --accent-hover: #8D6544;
+  --kbd-bg: #E0CA80;
+  --kbd-border: #D0B56F;
+  --kbd-text: #000000;
+  --selected-bg: #E0CA80;
+  --selected-fg: #000000;
+}
+
+/* Blue Theme */
+.theme-blue {
+  --background: #EFF6FF;
+  --foreground: #1E3A8A;
+  --sidebar-bg: #DBEAFE;
+  --border-color: #93C5FD;
+  --hover-bg: #BFDBFE;
+  --editor-bg: #EFF6FF;
+  --text-muted: #3B82F6;
+  --toolbar-bg: #DBEAFE;
+  --modal-bg: #DBEAFE;
+  --accent-color: #2563EB;
+  --accent-hover: #1D4ED8;
+  --kbd-bg: #BFDBFE;
+  --kbd-border: #93C5FD;
+  --kbd-text: #1E3A8A;
+  --selected-bg: #BFDBFE;
+  --selected-fg: #1E3A8A;
+}
+
+/* Black Theme */
+.theme-black {
+  --background: #121212;
+  --foreground: #FFFFFF;
+  --sidebar-bg: #1E1E1E;
+  --border-color: #333333;
+  --hover-bg: #2D2D2D;
+  --editor-bg: #121212;
+  --text-muted: #A0A0A0;
+  --toolbar-bg: #1E1E1E;
+  --modal-bg: #1E1E1E;
+  --accent-color: #BB86FC;
+  --accent-hover: #A855F7;
+  --kbd-bg: #2D2D2D;
+  --kbd-border: #444444;
+  --kbd-text: #FFFFFF;
+  --selected-bg: #2D2D2D;
+  --selected-fg: #FFFFFF;
+}
+
+/* White Theme */
+.theme-white {
+  --background: #FFFFFF;
+  --foreground: #000000;
+  --sidebar-bg: #F5F5F7;
+  --border-color: #E0E0E0;
+  --hover-bg: #F0F0F0;
+  --editor-bg: #FFFFFF;
+  --text-muted: #737373;
+  --toolbar-bg: #F5F5F7;
+  --modal-bg: #FFFFFF;
+  --accent-color: #0F172A;
+  --accent-hover: #1E293B;
+  --kbd-bg: #F0F0F0;
+  --kbd-border: #D0D0D0;
+  --kbd-text: #000000;
+  --selected-bg: #F0F0F0;
+  --selected-fg: #000000;
+}
+
+/* Default to yellow theme if no theme class is present */
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
-  --sidebar-bg: #0a0a0a;
-  --border-color: #1f1f1f;
-  --hover-bg: #1a1a1a;
-  --editor-bg: #000000;
-  --text-muted: #a0a0a0;
-  --toolbar-bg: #000000;
-  --modal-bg: #121212;
-  --kbd-bg: #1a1a1a;
-  --kbd-border: #2a2a2a;
-  --kbd-text: #ffffff;
+  --background: #F8F2D8;
+  --foreground: #000000;
+  --sidebar-bg: #F5E5B0;
+  --border-color: #D0B56F;
+  --hover-bg: #E8D396;
+  --editor-bg: #F8F2D8;
+  --text-muted: #8A7444;
+  --toolbar-bg: #F5E5B0;
+  --modal-bg: #F5E5B0;
+  --accent-color: #A97A53;
+  --accent-hover: #8D6544;
+  --kbd-bg: #E0CA80;
+  --kbd-border: #D0B56F;
+  --kbd-text: #000000;
+  --selected-bg: #E0CA80;
+  --selected-fg: #000000;
 }
 
 @theme inline {
@@ -23,16 +108,23 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not(.theme-yellow):not(.theme-blue):not(.theme-black):not(.theme-white) {
+    --background: #302B1C;
+    --foreground: #F8F2D8;
+    --sidebar-bg: #3D3625;
+    --border-color: #5A4E35;
+    --hover-bg: #4A422C;
+    --editor-bg: #302B1C;
+    --text-muted: #C9B887;
+    --toolbar-bg: #3D3625;
+    --modal-bg: #3D3625;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   min-height: 100vh;
   overflow: hidden;
 }
@@ -70,7 +162,7 @@ body {
 
 .editor-toolbar {
   background: var(--toolbar-bg);
-  border: none;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .ProseMirror {
@@ -129,7 +221,7 @@ body {
   height: 100%;
 }
 
-/* Make toolbar buttons visible on black background */
+/* Make toolbar buttons visible on background */
 .toolbar-button {
   color: var(--text-muted);
   background: transparent;
@@ -151,5 +243,144 @@ body {
   background-color: var(--kbd-bg);
   border: 1px solid var(--kbd-border);
   color: var(--kbd-text);
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Enhanced Autocomplete styles */
+.autocomplete-suggestion {
+  opacity: 0.8;
+  pointer-events: none;
+  user-select: none;
+  font-style: italic;
+  animation: autocompleteGlow 2s infinite;
+  transition: all 0.2s ease-in-out;
+}
+
+.ProseMirror:focus .autocomplete-suggestion {
+  opacity: 0.9;
+}
+
+@keyframes autocompleteGlow {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.6; }
+}
+
+.autocomplete-tooltip {
+  position: absolute;
+  bottom: -25px;
+  left: 0;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+  animation: tooltipFadeIn 0.3s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hide autocomplete suggestions when editor is not focused */
+.ProseMirror:not(:focus) .autocomplete-suggestion,
+.ProseMirror:not(:focus) .autocomplete-tooltip {
+  display: none !important;
+}
+
+/* Enhanced suggestion hint */
+.has-suggestion .ProseMirror:focus::after {
+  content: 'Tab to accept • Esc to dismiss';
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(139, 69, 219, 0.9));
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  pointer-events: none;
+  animation: suggestionHint 4s forwards;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+@keyframes suggestionHint {
+  0% { opacity: 0; transform: translateY(10px) scale(0.9); }
+  15% { opacity: 1; transform: translateY(0) scale(1); }
+  85% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-5px) scale(0.95); }
+}
+
+/* Theme switcher styles */
+.theme-switcher {
+  position: relative;
+}
+
+.theme-switcher-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 5px;
+  background: var(--modal-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
+  z-index: 50;
+  width: 200px;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 3px;
+}
+
+.theme-option:last-child {
+  margin-bottom: 0;
+}
+
+.theme-option:hover {
+  background: var(--hover-bg);
+}
+
+.theme-option.active {
+  background: var(--selected-bg);
+  color: var(--selected-fg);
+}
+
+.theme-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  margin-right: 10px;
+  border: 1px solid var(--border-color);
+}
+
+.yellow-color {
+  background-color: #F5E5B0;
+}
+
+.blue-color {
+  background-color: #DBEAFE;
+}
+
+.black-color {
+  background-color: #121212;
+  border-color: #555;
+}
+
+.white-color {
+  background-color: #FFFFFF;
+  border-color: #E0E0E0;
 }

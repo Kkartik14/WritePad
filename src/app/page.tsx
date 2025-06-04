@@ -6,9 +6,11 @@ import { DocumentManager } from '../components/DocumentManager';
 import { Editor } from '@tiptap/react';
 import { TabsManager, Tab } from '../components/Editor/TabsManager';
 import { FileText, Settings, HelpCircle } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Home() {
   const [editor, setEditor] = useState<Editor | null>(null);
+  const { theme } = useTheme();
   
   // Tabs state
   const [tabs, setTabs] = useState<Tab[]>([
@@ -121,18 +123,18 @@ export default function Home() {
   }, []);
   
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
       {/* Left Sidebar */}
-      <div className="sidebar w-64 flex flex-col">
-        <div className="p-4 border-b border-border-color">
-          <h1 className="text-xl font-semibold text-foreground">WritePad</h1>
+      <div className="sidebar w-64 flex flex-col bg-[var(--sidebar-bg)] border-r border-[var(--border-color)]">
+        <div className="p-4 border-b border-[var(--border-color)]">
+          <h1 className="text-xl font-semibold text-[var(--foreground)]">WritePad</h1>
         </div>
         <div className="flex-1 overflow-y-auto no-scrollbar p-2">
           {tabs.map(tab => (
             <div
               key={tab.id}
               className={`flex items-center p-2 rounded cursor-pointer mb-1 ${
-                tab.id === activeTabId ? 'bg-hover-bg text-foreground' : 'text-text-muted hover:text-foreground'
+                tab.id === activeTabId ? 'bg-[var(--selected-bg)] text-[var(--selected-fg)]' : 'text-[var(--text-muted)] hover:bg-[var(--hover-bg)]'
               }`}
               onClick={() => handleTabChange(tab.id)}
             >
@@ -141,10 +143,10 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <div className="p-4 border-t border-border-color">
+        <div className="p-4 border-t border-[var(--border-color)]">
           <button
             onClick={handleAddTab}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="w-full px-4 py-2 bg-[var(--accent-color)] text-white rounded hover:bg-[var(--accent-hover)]"
           >
             New Document
           </button>
@@ -152,9 +154,9 @@ export default function Home() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col bg-black">
+      <div className="flex-1 flex flex-col bg-[var(--editor-bg)]">
         {/* Tabs */}
-        <div className="flex items-center p-2 bg-black">
+        <div className="flex items-center p-2 bg-[var(--toolbar-bg)] border-b border-[var(--border-color)]">
           <TabsManager 
             tabs={tabs}
             activeTabId={activeTabId}
@@ -166,7 +168,7 @@ export default function Home() {
         </div>
 
         {/* Editor */}
-        <div className="flex-1 bg-black">
+        <div className="flex-1 bg-[var(--editor-bg)]">
           <WritePad 
             key={activeTabId}
             initialContent={content}
