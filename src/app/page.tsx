@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { WritePad, Tab as EditorTab } from '../components/Editor';
+import { WritePad } from '../components/Editor';
 import { DocumentManager } from '../components/DocumentManager';
 import { Editor } from '@tiptap/react';
 import { TabsManager } from '../components/Editor/TabsManager'; 
@@ -10,7 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import DocumentSizer from '../components/DocumentSizing';
 import { Modal } from '../components/Modal';
 
-interface Tab extends EditorTab {
+interface Tab {
     id: string;
     title: string;
     content: string;

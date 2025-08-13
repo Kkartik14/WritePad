@@ -1,7 +1,4 @@
 @import "tailwindcss";
-@import "tailwindcss/components";
-@import "tailwindcss/base";
-@import "tailwindcss/utilities";
 
 /* Default Yellow Theme */
 .theme-yellow {
