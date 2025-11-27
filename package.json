@@ -29,6 +29,8 @@
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.16",
+    "@tiptap/extension-collaboration": "^2.27.1",
+    "@tiptap/extension-collaboration-cursor": "^2.26.2",
     "@tiptap/extension-placeholder": "^2.12.0",
     "@tiptap/extension-strike": "^2.12.0",
     "@tiptap/extension-text-align": "^2.12.0",
@@ -43,7 +45,9 @@
     "react-dom": "^19.0.0",
     "slate": "^0.114.0",
     "slate-history": "^0.113.1",
-    "slate-react": "^0.114.2"
+    "slate-react": "^0.114.2",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.27"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

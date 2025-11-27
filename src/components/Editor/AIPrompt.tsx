@@ -23,7 +23,8 @@ export const AIPrompt = ({ onClose, onGenerateTemplate }: AIPromptProps) => {
     try {
       console.log('Submitting prompt to API:', prompt.substring(0, 50) + '...');
       
-      const response = await fetch('/api/generate-template', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/generate-template`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

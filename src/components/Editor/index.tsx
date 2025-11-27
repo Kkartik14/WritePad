@@ -1,3 +1,7 @@
+import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
 import { Editor } from './Editor';
 import { Toolbar } from './Toolbar';
 import { useState, useEffect } from 'react';
@@ -15,8 +19,8 @@ import { ExportOptions } from './ExportOptions';
 
 // Helper function to dispatch debug messages to the UI - matches the one in AutocompleteExtension
 function dispatchDebugMessage(message: string) {
-  document.dispatchEvent(new CustomEvent('autocomplete-debug', { 
-    detail: message 
+  document.dispatchEvent(new CustomEvent('autocomplete-debug', {
+    detail: message
   }));
 }
 
@@ -26,40 +30,73 @@ interface WritePadProps {
   onEditorReady?: (editor: TiptapEditor) => void;
   documentTitle?: string;
   onDocumentTitleChange?: (newTitle: string) => void;
+  collaborationDoc?: Y.Doc;
+  collaborationProvider?: WebsocketProvider;
+  username?: string;
 }
 
-export const WritePad = ({ 
-  initialContent = '<p></p>', 
-  onChange, 
+const colors = ['#958DF1', '#F98181', '#FBBC88', '#FAF594', '#70CFF8', '#94FADB', '#B9F18D'];
+
+export const WritePad = ({
+  initialContent = '<p></p>',
+  onChange,
   onEditorReady,
   documentTitle = 'Untitled',
-  onDocumentTitleChange
+  onDocumentTitleChange,
+  collaborationDoc,
+  collaborationProvider,
+  username = 'Anonymous'
 }: WritePadProps) => {
   const [wordCount, setWordCount] = useState(0);
   const [content, setContent] = useState(initialContent);
   const [autocompleteEnabled, setAutocompleteEnabled] = useState(false);
   const [debugMsg, setDebugMsg] = useState<string | null>(null);
 
+  const extensions = [
+    StarterKit.configure({
+      // Disable history if collaboration is enabled (Y.js handles it)
+      history: collaborationDoc ? false : undefined,
+    }),
+    TextAlign.configure({
+      types: ['heading', 'paragraph'],
+      alignments: ['left', 'center', 'right'],
+      defaultAlignment: 'left',
+    }),
+    Underline,
+    ShortcutExtension,
+    AutocompleteExtension.configure({
+      enabled: autocompleteEnabled,
+    }),
+  ];
+
+  if (collaborationDoc) {
+    extensions.push(
+      Collaboration.configure({
+        document: collaborationDoc,
+      })
+    );
+
+    if (collaborationProvider) {
+      extensions.push(
+        CollaborationCursor.configure({
+          provider: collaborationProvider,
+          user: {
+            name: username,
+            color: colors[Math.floor(Math.random() * colors.length)],
+          },
+        })
+      );
+    }
+  }
+
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-        alignments: ['left', 'center', 'right'],
-        defaultAlignment: 'left',
-      }),
-      Underline,
-      ShortcutExtension,
-      AutocompleteExtension.configure({
-        enabled: autocompleteEnabled,
-      }),
-    ],
-    content: initialContent,
+    extensions,
+    content: collaborationDoc ? null : initialContent,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       setContent(html);
       onChange?.(html);
-      
+
       // Update word count
       const text = editor.getText();
       if (text.trim() === '') {
@@ -72,7 +109,7 @@ export const WritePad = ({
       if (onEditorReady) {
         onEditorReady(editor);
       }
-      
+
       // Initial word count
       const text = editor.getText();
       if (text.trim() === '') {
@@ -96,12 +133,12 @@ export const WritePad = ({
     if (editor) {
       // Extension options are read-only after initialization, so we need to recreate the extension
       console.log('Autocomplete enabled state changed to:', autocompleteEnabled);
-      
+
       // Try getting the extension instance
       const extension = editor.extensionManager.extensions.find(ext => ext.name === 'autocomplete');
       if (extension) {
         console.log('Found autocomplete extension, current enabled state:', extension.options.enabled);
-        
+
         // Make sure the storage exists
         if (!editor.storage.autocomplete) {
           console.log('Initializing autocomplete storage');
@@ -109,20 +146,20 @@ export const WritePad = ({
         } else {
           console.log('Current storage before update:', editor.storage.autocomplete);
         }
-        
+
         // Since we can't modify extension options directly post-initialization,
         // we'll use a storage value to track state
         editor.storage.autocomplete = {
           ...editor.storage.autocomplete,
           enabled: autocompleteEnabled
         };
-        
+
         console.log('Updated storage value:', editor.storage.autocomplete);
         console.log('All editor storage:', editor.storage);
-        
+
         // Force an update of the entire editor state
         editor.view.updateState(editor.view.state);
-        
+
         // Check again after update to confirm the storage was properly set
         setTimeout(() => {
           console.log('Storage value after update:', editor.storage.autocomplete);
@@ -130,7 +167,7 @@ export const WritePad = ({
             console.warn('Storage value does not match expected state!');
           }
         }, 100);
-        
+
         dispatchDebugMessage(`Autocomplete ${autocompleteEnabled ? 'enabled' : 'disabled'}`);
       } else {
         console.error('Autocomplete extension not found');
@@ -157,7 +194,7 @@ export const WritePad = ({
   useEffect(() => {
     if (!editor) return;
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = () => {
       // Handle keyboard shortcuts here if needed
     };
 
@@ -173,19 +210,19 @@ export const WritePad = ({
       setDebugMsg(null);
       return;
     }
-    
+
     // Listen for the new message events
     const handleMessage = (event: CustomEvent) => {
       const { message, type } = event.detail;
       setDebugMsg(`${type}: ${message}`);
-      
+
       // Clear message after different durations based on type
       const duration = type === 'error' ? 5000 : type === 'success' ? 2000 : 3000;
       setTimeout(() => {
         setDebugMsg(null);
       }, duration);
     };
-    
+
     document.addEventListener('autocomplete-message', handleMessage as EventListener);
     return () => {
       document.removeEventListener('autocomplete-message', handleMessage as EventListener);
@@ -194,8 +231,8 @@ export const WritePad = ({
 
   return (
     <div className="editor-container h-full flex flex-col">
-      <Toolbar 
-        editor={editor} 
+      <Toolbar
+        editor={editor}
         documentTitle={documentTitle}
         onDocumentTitleChange={onDocumentTitleChange}
         currentContent={content}
@@ -211,12 +248,12 @@ export const WritePad = ({
               <strong>AI Autocomplete is ON</strong> - Type naturally and see AI suggestions appear. Press <kbd className="px-1 py-0.5 bg-[var(--kbd-bg)] rounded border border-[var(--kbd-border)] mx-1">Tab</kbd> to accept or <kbd className="px-1 py-0.5 bg-[var(--kbd-bg)] rounded border border-[var(--kbd-border)] mx-1">Esc</kbd> to dismiss.
               {debugMsg && (
                 <span className="ml-2 px-2 py-0.5 rounded text-xs bg-opacity-80" style={{
-                  backgroundColor: debugMsg.startsWith('error') ? '#fee' : 
-                                   debugMsg.startsWith('success') ? '#efe' : 
-                                   debugMsg.startsWith('loading') ? '#fef' : '#eef',
-                  color: debugMsg.startsWith('error') ? '#c33' : 
-                         debugMsg.startsWith('success') ? '#363' : 
-                         debugMsg.startsWith('loading') ? '#636' : '#336'
+                  backgroundColor: debugMsg.startsWith('error') ? '#fee' :
+                    debugMsg.startsWith('success') ? '#efe' :
+                      debugMsg.startsWith('loading') ? '#fef' : '#eef',
+                  color: debugMsg.startsWith('error') ? '#c33' :
+                    debugMsg.startsWith('success') ? '#363' :
+                      debugMsg.startsWith('loading') ? '#636' : '#336'
                 }}>
                   {debugMsg}
                 </span>
@@ -245,4 +282,4 @@ export const WritePad = ({
   );
 };
 
-export { Editor, Toolbar }; 
+export { Editor, Toolbar };

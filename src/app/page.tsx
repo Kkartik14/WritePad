@@ -4,16 +4,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { WritePad } from '../components/Editor';
 import { DocumentManager } from '../components/DocumentManager';
 import { Editor } from '@tiptap/react';
-import { TabsManager } from '../components/Editor/TabsManager'; 
-import { FileText, Settings, HelpCircle, Printer, PlusCircle } from 'lucide-react'; 
+import { TabsManager } from '../components/Editor/TabsManager';
+import { FileText, Settings, HelpCircle, Printer, PlusCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import DocumentSizer from '../components/DocumentSizing';
 import { Modal } from '../components/Modal';
+import { CollaborationProvider, useCollaboration } from '../components/CollaborationProvider';
+import { NerdStats } from '../components/NerdStats';
+import { ShareButton } from '../components/ShareButton';
+import dynamic from 'next/dynamic';
+
+// Wrapper to inject collaboration context
+const ConnectedEditor = dynamic(() => Promise.resolve((props: React.ComponentProps<typeof WritePad>) => {
+  const { doc, provider } = useCollaboration();
+  return <WritePad {...props} collaborationDoc={doc} collaborationProvider={provider || undefined} />;
+}), { ssr: false });
 
 interface Tab {
-    id: string;
-    title: string;
-    content: string;
+  id: string;
+  title: string;
+  content: string;
 }
 
 export default function Home() {
@@ -24,11 +34,21 @@ export default function Home() {
     { id: Date.now().toString(), title: 'Untitled Document', content: '<p>Welcome to WritePad!</p>' }
   ]);
   const [activeTabId, setActiveTabId] = useState<string>(tabs[0].id);
-  
+
   // State for the content of the active editor (driven by activeTabId change)
   const [currentEditorContent, setCurrentEditorContent] = useState<string>('');
 
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [roomID, setRoomID] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check URL for room ID on mount
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (room) {
+      setRoomID(room);
+    }
+  }, []);
 
   // Effect to update currentEditorContent when activeTabId or tabs change
   useEffect(() => {
@@ -55,12 +75,12 @@ export default function Home() {
 
     // Save content of the PREVIOUSLY active tab
     if (editor) {
-        const previousTabContent = editor.getHTML();
-        setTabs(prevTabs =>
-            prevTabs.map(tab =>
-                tab.id === activeTabId ? { ...tab, content: previousTabContent } : tab
-            )
-        );
+      const previousTabContent = editor.getHTML();
+      setTabs(prevTabs =>
+        prevTabs.map(tab =>
+          tab.id === activeTabId ? { ...tab, content: previousTabContent } : tab
+        )
+      );
     }
     setActiveTabId(tabId);
     // currentEditorContent will be updated by the useEffect above
@@ -79,7 +99,7 @@ export default function Home() {
       return updatedTabs;
     });
     // Also update the local state for the editor if necessary, though Tiptap handles its own state
-    setCurrentEditorContent(newContent); 
+    setCurrentEditorContent(newContent);
   }, [activeTabId]);
 
 
@@ -112,41 +132,41 @@ export default function Home() {
         setCurrentEditorContent(defaultTab.content);
       }
     } else {
-        // No saved tabs, initialize with a default one
-        const newTabId = tabs[0]?.id || Date.now().toString(); // Use existing or new
-        if (!tabs[0]) {
-            const defaultTab: Tab = { id: newTabId, title: 'Untitled', content: '<p></p>' };
-            setTabs([defaultTab]);
-            setActiveTabId(defaultTab.id);
-            setCurrentEditorContent(defaultTab.content);
-        }
+      // No saved tabs, initialize with a default one
+      const newTabId = tabs[0]?.id || Date.now().toString(); // Use existing or new
+      if (!tabs[0]) {
+        const defaultTab: Tab = { id: newTabId, title: 'Untitled', content: '<p></p>' };
+        setTabs([defaultTab]);
+        setActiveTabId(defaultTab.id);
+        setCurrentEditorContent(defaultTab.content);
+      }
     }
   }, []); // Run only on mount
 
   useEffect(() => {
-    if(activeTabId) { // Only save if activeTabId is valid
-        localStorage.setItem('writepad-active-tab-id', activeTabId);
+    if (activeTabId) { // Only save if activeTabId is valid
+      localStorage.setItem('writepad-active-tab-id', activeTabId);
     }
   }, [activeTabId]);
-  
+
 
   const handleAddTab = useCallback(() => {
     const newTabId = Date.now().toString();
     const newTab: Tab = { id: newTabId, title: `Document ${tabs.length + 1}`, content: '<p></p>' };
-    
+
     // Save current editor content before adding new tab
     if (editor) {
-        const previousTabContent = editor.getHTML();
-        setTabs(prevTabs => {
-            const updatedOldTabs = prevTabs.map(tab =>
-                tab.id === activeTabId ? { ...tab, content: previousTabContent } : tab
-            );
-            return [...updatedOldTabs, newTab];
-        });
+      const previousTabContent = editor.getHTML();
+      setTabs(prevTabs => {
+        const updatedOldTabs = prevTabs.map(tab =>
+          tab.id === activeTabId ? { ...tab, content: previousTabContent } : tab
+        );
+        return [...updatedOldTabs, newTab];
+      });
     } else {
-        setTabs(prevTabs => [...prevTabs, newTab]);
+      setTabs(prevTabs => [...prevTabs, newTab]);
     }
-    
+
     setActiveTabId(newTabId);
     setCurrentEditorContent(newTab.content); // Set content for the new tab
   }, [tabs.length, editor, activeTabId]);
@@ -196,11 +216,10 @@ export default function Home() {
             <div
               key={tab.id}
               title={tab.title}
-              className={`flex items-center p-2 rounded-md cursor-pointer text-sm transition-colors duration-150 ${
-                tab.id === activeTabId
-                  ? 'bg-[var(--selected-bg)] text-[var(--selected-fg)] font-medium'
-                  : 'text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--foreground)]'
-              }`}
+              className={`flex items-center p-2 rounded-md cursor-pointer text-sm transition-colors duration-150 ${tab.id === activeTabId
+                ? 'bg-[var(--selected-bg)] text-[var(--selected-fg)] font-medium'
+                : 'text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--foreground)]'
+                }`}
               onClick={() => handleTabChange(tab.id)}
             >
               <FileText className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -232,30 +251,46 @@ export default function Home() {
             onTabDelete={handleDeleteTab}
             onTabRename={handleRenameTab}
           />
-          <button
-            onClick={() => setIsPrintModalOpen(true)}
-            className="ml-auto p-2 rounded-md hover:bg-[var(--hover-bg)] text-[var(--foreground)] flex-shrink-0"
-            title="Page Setup & Print"
-          >
-            <Printer size={18} />
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <ShareButton
+              isShared={!!roomID}
+              onShare={() => {
+                // Generate UUID and update URL
+                const newRoomID = crypto.randomUUID();
+                const url = new URL(window.location.href);
+                url.searchParams.set('room', newRoomID);
+                window.history.pushState({}, '', url.toString());
+                setRoomID(newRoomID);
+              }}
+            />
+            <button
+              onClick={() => setIsPrintModalOpen(true)}
+              className="p-2 rounded-md hover:bg-[var(--hover-bg)] text-[var(--foreground)] flex-shrink-0"
+              title="Page Setup & Print"
+            >
+              <Printer size={18} />
+            </button>
+          </div>
         </header>
 
         {/* Editor Section */}
         <section className="flex-1 overflow-y-auto bg-[var(--editor-bg)]"> {/* Editor takes remaining space and scrolls */}
           {tabs.length > 0 && activeTabId && currentEditorContent !== undefined && (
-            <WritePad
-              key={activeTabId} // Crucial for re-initializing Tiptap with new content
-              initialContent={currentEditorContent}
-              onChange={handleContentChange}
-              onEditorReady={setEditor}
-              documentTitle={activeTabForTitle?.title || 'Untitled'}
-              onDocumentTitleChange={(newTitle) => {
-                if (activeTabId) {
-                  handleRenameTab(activeTabId, newTitle);
-                }
-              }}
-            />
+            <CollaborationProvider roomID={roomID || undefined} username="User">
+              <ConnectedEditor
+                key={activeTabId} // Crucial for re-initializing Tiptap with new content
+                initialContent={currentEditorContent}
+                onChange={handleContentChange}
+                onEditorReady={setEditor}
+                documentTitle={activeTabForTitle?.title || 'Untitled'}
+                onDocumentTitleChange={(newTitle: string) => {
+                  if (activeTabId) {
+                    handleRenameTab(activeTabId, newTitle);
+                  }
+                }}
+              />
+              <NerdStats />
+            </CollaborationProvider>
           )}
         </section>
       </main>
@@ -270,7 +305,7 @@ export default function Home() {
         <DocumentSizer>
           <div
             className="prose dark:prose-invert max-w-none p-4 print-content-area bg-white dark:bg-gray-800 text-black dark:text-white"
-            style={{minHeight: '297mm'}} // Ensure some min height for A4 example, adjust as needed
+            style={{ minHeight: '297mm' }} // Ensure some min height for A4 example, adjust as needed
             dangerouslySetInnerHTML={{ __html: contentForPrinting }}
           />
         </DocumentSizer>

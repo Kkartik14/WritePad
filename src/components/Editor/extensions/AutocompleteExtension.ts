@@ -40,7 +40,7 @@ function log(...args: any[]) {
 
 // Helper function to dispatch UI messages
 function dispatchUIMessage(message: string, type: 'info' | 'success' | 'error' | 'loading' = 'info') {
-  document.dispatchEvent(new CustomEvent('autocomplete-message', { 
+  document.dispatchEvent(new CustomEvent('autocomplete-message', {
     detail: { message, type }
   }));
 }
@@ -62,11 +62,12 @@ async function getLLMCompletion(text: string): Promise<string | null> {
     }
 
     log('Fetching API completion for:', text);
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
 
-    const response = await fetch('/api/autocomplete', {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const response = await fetch(`${apiUrl}/api/autocomplete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -84,7 +85,7 @@ async function getLLMCompletion(text: string): Promise<string | null> {
 
     const data = await response.json();
     const completion = data.completion?.trim();
-    
+
     if (!completion || completion.length > 50) {
       log('Invalid completion received:', completion);
       return null;
@@ -112,7 +113,7 @@ async function getLLMCompletion(text: string): Promise<string | null> {
 // Intelligent fallback suggestions with context awareness
 function getSmartFallbackSuggestion(text: string): string | null {
   const trimmedText = text.trim().toLowerCase();
-  
+
   // Enhanced phrase completions
   const phraseCompletions: Record<string, string[]> = {
     'i am ': ['working on this project', 'excited to share', 'planning to implement', 'currently developing'],
@@ -135,7 +136,7 @@ function getSmartFallbackSuggestion(text: string): string | null {
 
   // Smart word completion
   const lastWord = text.split(/\s+/).pop()?.toLowerCase() || '';
-  
+
   const smartWordCompletions: Record<string, string[]> = {
     'imp': ['ortant consideration', 'lementation details', 'rovement suggestions'],
     'dev': ['elopment process', 'eloping solutions', 'ice configuration'],
@@ -159,11 +160,11 @@ function getSmartFallbackSuggestion(text: string): string | null {
   if (text.includes('meeting') || text.includes('schedule')) {
     return 'at your earliest convenience';
   }
-  
+
   if (text.includes('review') || text.includes('feedback')) {
     return 'would be greatly appreciated';
   }
-  
+
   if (text.includes('project') || text.includes('development')) {
     return 'is moving forward as planned';
   }
@@ -174,30 +175,30 @@ function getSmartFallbackSuggestion(text: string): string | null {
 // Optimized completion request with better debouncing
 function requestCompletion(text: string): void {
   const textKey = text.trim();
-  
+
   // Don't make requests for very short text
   if (textKey.length < 5) {
     log('Text too short for completion:', textKey);
     return;
   }
-  
+
   // Don't make requests if we already have a completion or are pending
   if (currentCompletions.has(textKey) || pendingCompletions.has(textKey)) {
     log('Already have completion or pending request for:', textKey);
     return;
   }
-  
+
   // Don't make repeated requests for the same text
   if (lastTextRequested === textKey) {
     log('Already requested completion for this exact text:', textKey);
     return;
   }
-  
+
   // Clear previous timeout
   if (debounceTimeout) {
     clearTimeout(debounceTimeout);
   }
-  
+
   // Much longer debounce to prevent spam - 1 second
   debounceTimeout = setTimeout(async () => {
     // Triple-check we don't already have this completion
@@ -205,21 +206,21 @@ function requestCompletion(text: string): void {
       log('Completion appeared while waiting, skipping request for:', textKey);
       return;
     }
-    
+
     // Check if text is still the same (user might have continued typing)
     if (lastTextRequested !== textKey) {
       lastTextRequested = textKey; // Mark as requested
     }
-    
+
     pendingCompletions.add(textKey);
     dispatchUIMessage('Getting AI suggestion...', 'loading');
-    
+
     try {
       log('Making API call for:', textKey);
-      
+
       // Try API first
       let completion = await getLLMCompletion(textKey);
-      
+
       // Fall back to smart suggestions if API fails
       if (!completion) {
         completion = getSmartFallbackSuggestion(textKey);
@@ -232,30 +233,30 @@ function requestCompletion(text: string): void {
       } else {
         dispatchUIMessage('AI suggestion ready', 'success');
       }
-      
+
       // Store the completion
       if (completion) {
         currentCompletions.set(textKey, completion);
-        
+
         // Only update current suggestion if this is still the active text
         if (textKey === lastTextRequested) {
           currentSuggestionKey = textKey;
           currentSuggestionText = completion;
-          
+
           // Trigger UI update
           document.dispatchEvent(new CustomEvent('autocomplete-update'));
         }
       }
-      
+
     } catch (error) {
       log('Error in requestCompletion:', error);
       dispatchUIMessage('Error getting suggestion', 'error');
-      
+
       // Try fallback even on error
       const fallback = getSmartFallbackSuggestion(textKey);
       if (fallback) {
         currentCompletions.set(textKey, fallback);
-        
+
         if (textKey === lastTextRequested) {
           currentSuggestionKey = textKey;
           currentSuggestionText = fallback;
@@ -278,13 +279,13 @@ function clearCurrentSuggestion() {
   lastCursorPosition = 0; // Reset cursor tracking
   currentCompletions.clear();
   requestedCompletions.clear();
-  
+
   // Clear any pending timeouts
   if (debounceTimeout) {
     clearTimeout(debounceTimeout);
     debounceTimeout = null;
   }
-  
+
   // Trigger an update to clear any stale decorations
   document.dispatchEvent(new CustomEvent('autocomplete-update'));
 }
@@ -321,7 +322,7 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
     };
 
     document.addEventListener('autocomplete-update', handleUpdate);
-    
+
     // Cleanup on destroy
     this.editor?.on('destroy', () => {
       document.removeEventListener('autocomplete-update', handleUpdate);
@@ -338,35 +339,35 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
         // Check enabled state from editor storage, not this.storage
         const isEnabled = editor?.storage?.autocomplete?.enabled ?? false;
         log('Tab key pressed. Enabled:', isEnabled, 'Current suggestion:', currentSuggestionText);
-        
+
         if (!isEnabled) {
           log('Autocomplete not enabled, allowing normal Tab behavior');
           return false;
         }
-        
+
         if (!currentSuggestionText || currentSuggestionText.trim() === '') {
           log('No current suggestion available, allowing normal Tab behavior');
           return false;
         }
 
         log('Tab pressed - accepting suggestion:', currentSuggestionText);
-        
+
         try {
           const { view } = editor;
           const { state } = view;
           const { selection } = state;
-          
+
           if (selection.empty) {
             // Insert the suggestion text at the current cursor position
             const transaction = state.tr.insertText(currentSuggestionText, selection.from);
             view.dispatch(transaction);
-            
+
             // Clear the suggestion after accepting it
             clearCurrentSuggestion();
             dispatchUIMessage('Suggestion accepted!', 'success');
-            
+
             log('Suggestion successfully accepted and inserted');
-            
+
             // Return true to prevent default Tab behavior
             return true;
           } else {
@@ -379,17 +380,17 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
           return false;
         }
       },
-      
+
       // Escape to dismiss suggestion  
       Escape: ({ editor }) => {
         if (currentSuggestionText && currentSuggestionText.trim() !== '') {
           log('Escape pressed - dismissing suggestion:', currentSuggestionText);
           clearCurrentSuggestion();
           dispatchUIMessage('Suggestion dismissed', 'info');
-          
+
           // Force update the view to remove the suggestion immediately
           editor.view.updateState(editor.view.state);
-          
+
           // Return true to prevent default Escape behavior
           return true;
         }
@@ -401,19 +402,19 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
   addProseMirrorPlugins() {
     const editor = this.editor;
     const pluginKey = new PluginKey('autocomplete');
-    
+
     return [
       new Plugin({
         key: pluginKey,
-        
+
         state: {
           init() {
-            return { 
+            return {
               suggestion: null,
               enabled: false,
             };
           },
-          
+
           apply(tr, prev) {
             const meta = tr.getMeta(pluginKey);
             if (meta) {
@@ -427,32 +428,32 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
           decorations: (state) => {
             // Check if autocomplete is enabled
             const isEnabled = editor?.storage?.autocomplete?.enabled ?? false;
-            
+
             if (!isEnabled) {
               lastProcessedText = '';
               lastDecorationSet = null;
               return DecorationSet.empty;
             }
-            
+
             const { doc, selection } = state;
-            
+
             // Only show suggestions at empty cursor positions
             if (!selection.empty) {
               lastProcessedText = '';
               lastDecorationSet = null;
               return DecorationSet.empty;
             }
-            
+
             const currentPos = selection.from;
-            
+
             // Get text context around cursor
             const $pos = doc.resolve(currentPos);
             const start = $pos.start($pos.depth);
             const textBeforeCursor = doc.textBetween(start, currentPos);
             const textKey = textBeforeCursor.trim();
-            
+
             log('Decorations called for text:', textKey, 'Position:', currentPos);
-            
+
             // Check minimum length requirement - be more reasonable for display
             if (textBeforeCursor.length < 5) {
               // Clear suggestion if text is too short
@@ -464,19 +465,19 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
               lastProcessedText = textKey;
               return lastDecorationSet;
             }
-            
+
             // Check if we already have a suggestion for this text
             const existingSuggestion = currentCompletions.get(textKey);
-            
+
             log('Existing suggestion for', textKey, ':', existingSuggestion);
-            
+
             if (existingSuggestion) {
               log('Showing existing suggestion for:', textKey, '→', existingSuggestion);
-              
+
               // Update the current suggestion tracking variables so Tab key works
               currentSuggestionKey = textKey;
               currentSuggestionText = existingSuggestion;
-              
+
               // Create and return the suggestion widget
               const widget = Decoration.widget(currentPos, () => {
                 const span = document.createElement('span');
@@ -493,7 +494,7 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
                   border: 1px solid rgba(168, 85, 247, 0.2);
                 `;
                 span.textContent = existingSuggestion;
-                
+
                 // Add tooltip
                 const tooltip = document.createElement('div');
                 tooltip.className = 'autocomplete-tooltip';
@@ -512,28 +513,28 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
                   z-index: 1000;
                 `;
                 tooltip.textContent = 'Tab to accept • Esc to dismiss';
-                
+
                 const container = document.createElement('span');
                 container.style.position = 'relative';
                 container.appendChild(span);
                 container.appendChild(tooltip);
-                
+
                 return container;
               }, {
                 side: 1,
                 marks: [],
               });
-              
+
               lastDecorationSet = DecorationSet.create(doc, [widget]);
               lastProcessedText = textKey;
               return lastDecorationSet;
             } else {
               // Only request completion if conditions are met - keep API requests conservative
-              const shouldRequest = !pendingCompletions.has(textKey) && 
-                                   lastTextRequested !== textKey &&
-                                   textKey.length >= 8 &&
-                                   !textKey.endsWith(' '); // Don't request if text ends with space
-              
+              const shouldRequest = !pendingCompletions.has(textKey) &&
+                lastTextRequested !== textKey &&
+                textKey.length >= 8 &&
+                !textKey.endsWith(' '); // Don't request if text ends with space
+
               if (shouldRequest) {
                 log('Requesting new completion for:', textKey);
                 requestCompletion(textBeforeCursor);
@@ -545,14 +546,14 @@ export const AutocompleteExtension = Extension.create<AutocompleteOptions>({
                   endsWithSpace: textKey.endsWith(' ')
                 });
               }
-              
+
               // Clear suggestion tracking if no suggestion available
               if (currentSuggestionText && currentSuggestionKey !== textKey) {
                 log('Clearing outdated suggestion');
                 currentSuggestionText = '';
                 currentSuggestionKey = '';
               }
-              
+
               lastDecorationSet = DecorationSet.empty;
               lastProcessedText = textKey;
               return lastDecorationSet;
