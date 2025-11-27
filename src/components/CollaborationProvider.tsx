@@ -38,7 +38,7 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
     const [stats, setStats] = useState({ ping: 0, packetsIn: 0, packetsOut: 0 });
 
     const docRef = useRef<Y.Doc>(new Y.Doc());
-    const providerRef = useRef<WebsocketProvider | null>(null);
+    const providerRef = useRef<WebsocketProvider | any>(null);
     const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
@@ -50,40 +50,92 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
         }
 
         const doc = docRef.current;
-        // Default to HTTPS because the Go server uses TLS (WebTransport requirement)
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:8080';
+        // Use HTTP for local dev to avoid cert issues with the API itself
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
-        // FORCE WSS: The Go server is running TLS, so we must use wss://
-        // Even if apiUrl is http, we upgrade to wss
-        const wsUrl = apiUrl.replace(/^http:/, 'wss:').replace(/^https:/, 'wss:') + '/collab/' + roomID;
+        // Try WebTransport first (experimental)
+        // We assume WebTransport server is on port 4433 as per our backend setup
+        const wtUrl = 'https://localhost:4433';
 
-        console.log('Connecting to collaboration server:', wsUrl);
+        const connectWebTransport = async () => {
+            try {
+                // Dynamic import to avoid SSR issues if any
+                const { DocSyncProvider } = await import('../lib/DocSyncProvider');
+
+                // Fetch cert hash to bypass browser flag requirement
+                let options;
+                try {
+                    const res = await fetch(`${apiUrl}/api/cert-hash`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.hash) {
+                            const binaryString = window.atob(data.hash);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            options = {
+                                serverCertificateHashes: [{ algorithm: 'sha-256', value: bytes }]
+                            };
+                            console.log('Using server certificate hash for WebTransport');
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to fetch cert hash, trying without...', e);
+                }
+
+                console.log('Attempting WebTransport connection...');
+                const provider = new DocSyncProvider(wtUrl, roomID, doc, options);
+                await provider.connect();
+
+                if (provider.connected) {
+                    console.log('WebTransport connected successfully');
+                    providerRef.current = provider;
+                    setProtocol('WebTransport (QUIC)');
+                    setStatus('connected');
+                    return true;
+                }
+            } catch (e) {
+                console.warn('WebTransport failed, falling back to WebSocket', e);
+            }
+            return false;
+        };
+
+        const connectWebSocket = () => {
+            // Determine WS scheme based on API URL
+            const scheme = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+            const wsUrl = apiUrl.replace(/^http:/, scheme).replace(/^https:/, scheme) + '/collab/' + roomID;
+            console.log('Connecting via WebSocket:', wsUrl);
+
+            const provider = new WebsocketProvider(wsUrl, roomID, doc, {
+                connect: true,
+                params: {},
+            });
+
+            providerRef.current = provider;
+            setProtocol('WebSocket');
+
+            provider.on('status', (event: { status: string }) => {
+                setStatus(event.status as 'connecting' | 'connected' | 'disconnected');
+            });
+
+            provider.on('sync', (isSynced: boolean) => {
+                if (isSynced) console.log('Y.js synced via WebSocket');
+            });
+        };
+
+        // Connection Logic
         setStatus('connecting');
 
-        const provider = new WebsocketProvider(wsUrl, roomID, doc, {
-            connect: true,
-            params: {}, // Add auth params here if needed
+        // Attempt WebTransport then WebSocket
+        connectWebTransport().then(success => {
+            if (!success) connectWebSocket();
         });
 
-        providerRef.current = provider;
-
-        provider.on('status', (event: { status: string }) => {
-            setStatus(event.status as 'connecting' | 'connected' | 'disconnected');
-        });
-
-        provider.on('sync', (isSynced: boolean) => {
-            if (isSynced) {
-                console.log('Y.js synced');
-            }
-        });
 
         // Nerd Stats Logic
-        let lastPingTime = Date.now();
-
-        // Hook into the websocket to count packets (this is a bit hacky as y-websocket doesn't expose it easily)
-        // We can listen to 'update' events on the doc to count incoming changes
         doc.on('update', (update: Uint8Array, origin: unknown) => {
-            if (origin !== provider) { // Local update
+            if (origin !== providerRef.current) { // Local update
                 setStats(prev => ({ ...prev, packetsOut: prev.packetsOut + 1 }));
             } else { // Remote update
                 setStats(prev => ({ ...prev, packetsIn: prev.packetsIn + 1 }));
@@ -92,25 +144,18 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
 
         // Ping loop
         statsIntervalRef.current = setInterval(() => {
-            if (provider.wsconnected) {
-                const start = Date.now();
-                // We can't easily send a custom ping frame via y-websocket without hacking it.
-                // But we can estimate latency if we had a server echo.
-                // For now, let's simulate a "healthy" ping or use a real one if we can.
-                // Actually, let's trust the WebSocket object if accessible.
-                // provider.ws doesn't exist on the type definition but it's there at runtime.
-
-                // Let's just randomize it slightly around 5-15ms for "local" feel unless we implement real ping.
-                // Real engineers would implement a custom message handler.
-                // Let's do that:
-                // We can send a custom message if we modify the server to echo it.
-
+            if (status === 'connected') {
+                // Simulate ping for now
                 setStats(prev => ({ ...prev, ping: Math.floor(Math.random() * 10) + 5 }));
             }
         }, 1000);
 
         return () => {
-            provider.destroy();
+            if (providerRef.current) {
+                // Handle different destroy methods
+                if (providerRef.current.destroy) providerRef.current.destroy();
+                // if (providerRef.current.disconnect) providerRef.current.disconnect();
+            }
             if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
             setStatus('disconnected');
         };
