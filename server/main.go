@@ -4,11 +4,15 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -25,7 +29,7 @@ func main() {
 	// or you can copy it to the server directory. For now, let's try reading from parent or current.
 	if err := godotenv.Load("../.env.local"); err != nil {
 		log.Println("No ../.env.local file found, trying .env")
-		godotenv.Load()
+		_ = godotenv.Load() // Ignore error if .env also doesn't exist
 	}
 
 	port := os.Getenv("PORT")
@@ -41,9 +45,9 @@ func main() {
 
 	// CORS configuration
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000"}, // Allow Next.js frontend
+		AllowedOrigins:   []string{"http://localhost:3000", "https://localhost:3000"}, // Allow Next.js frontend
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "Sec-WebSocket-Protocol"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
@@ -58,20 +62,19 @@ func main() {
 
 	// Collaboration Routes
 	r.Get("/collab/{roomID}", func(w http.ResponseWriter, r *http.Request) {
-		// Negotiate protocol
+		// Negotiate protocol based on headers
 		if r.Header.Get("Sec-WebSocket-Protocol") != "" || r.Header.Get("Upgrade") == "websocket" {
 			hub.HandleWebSocket(w, r)
 		} else {
-			// Default to WebTransport attempt (client should send appropriate headers)
-			// For now, we can have separate endpoints or sniff headers.
-			// WebTransport uses a specific CONNECT method in HTTP/3, but in Go's http.Handler
-			// it appears as a standard request we upgrade.
-			hub.HandleWebTransport(w, r)
+			// For WebTransport, the client should connect to the HTTP/3 port (4433) directly.
+			// Or we can inform them to switch ports.
+			// Since we are running two separate servers, this endpoint on the HTTP/2 server
+			// handles WebSockets. The WebTransport endpoint is on the HTTP/3 server.
+			http.Error(w, "For WebTransport, connect to port 4433", http.StatusUpgradeRequired)
 		}
 	})
 
 	// Generate self-signed certs for WebTransport (QUIC requires TLS)
-	// In production, use valid certs (Let's Encrypt)
 	certFile := "localhost.pem"
 	keyFile := "localhost-key.pem"
 	if _, err := os.Stat(certFile); os.IsNotExist(err) {
@@ -79,31 +82,48 @@ func main() {
 		generateCert(certFile, keyFile)
 	}
 
-	log.Printf("Server starting on port %s (HTTP/3 + HTTP/2 + HTTP/1.1)", port)
+	// Calculate Certificate Hash for WebTransport
+	// This allows the frontend to connect without browser flags if we pass this hash
+	certPEM, err := os.ReadFile(certFile)
+	if err != nil {
+		log.Fatalf("Failed to read cert file: %v", err)
+	}
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		log.Fatal("Failed to decode cert PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		log.Fatal("Failed to parse cert")
+	}
+	sha256Hash := sha256.Sum256(cert.Raw)
+	// WebTransport expects the hash as a byte array, but we'll send it as base64 or hex to frontend
+	// Actually, the API expects Uint8Array. We'll send a JSON array of numbers or hex string.
+	// Let's send the raw bytes as base64.
+	certHashBase64 := base64.StdEncoding.EncodeToString(sha256Hash[:])
 
-	// We need to start a server that supports both TCP (HTTP/1, HTTP/2) and UDP (HTTP/3 for WebTransport)
-	// The quic-go/webtransport-go library helps, but standard http.ListenAndServeTLS is TCP only.
-	// For a true hybrid on the same port, we need a bit more setup, but for dev simplicity:
-	// We will run the standard HTTP server for WS and API, and a separate QUIC server if needed,
-	// OR use a library that multiplexes.
+	log.Printf("Server Certificate Hash (SHA-256): %x", sha256Hash)
 
-	// Ideally, we use `http3.ListenAndServeQUIC` for QUIC and `http.ListenAndServeTLS` for TCP.
-	// For this MVP, let's just use ListenAndServeTLS which supports HTTP/2, and we'll see if we can attach QUIC.
-	// Actually, webtransport-go works on top of an http.Server.
+	// Add endpoint to serve the hash
+	r.Get("/api/cert-hash", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"hash": certHashBase64,
+		})
+	})
 
-	// Simplified approach: Run standard TLS server.
-	// Note: WebTransport strictly requires HTTP/3 (QUIC).
-	// We will need to run the QUIC server alongside.
+	log.Printf("Server starting on ports %s (HTTP + WebSocket) and 4433 (HTTP/3 + WebTransport)", port)
 
+	// Start HTTP/3 server for WebTransport on port 4433
 	go func() {
-		// Start QUIC server for WebTransport
-		// This is a placeholder for the actual QUIC listener setup which is more verbose.
-		// For now, let's stick to the standard TLS server which handles WebSocket perfectly.
-		// To truly enable WebTransport, we would need `github.com/quic-go/quic-go/http3`.
-		// Let's add that dependency next if this fails.
+		if err := StartWebTransportServer("4433", hub, certFile, keyFile); err != nil {
+			log.Printf("[ERROR] HTTP/3 server error: %v", err)
+		}
 	}()
 
-	if err := http.ListenAndServeTLS(":"+port, certFile, keyFile, r); err != nil {
+	// Start HTTP server for WebSocket and API routes (No TLS for signaling/API to avoid cert issues)
+	// WebTransport on port 4433 will still use TLS as required.
+	if err := http.ListenAndServe(":"+port, r); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -121,11 +141,14 @@ func generateCert(certFile, keyFile string) {
 			Organization: []string{"WritePad Dev"},
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 365),
+		// WebTransport with serverCertificateHashes requires short-lived certs (max 14 days)
+		NotAfter: time.Now().Add(time.Hour * 24 * 10),
 
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
+		DNSNames:              []string{"localhost"},
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
@@ -134,11 +157,15 @@ func generateCert(certFile, keyFile string) {
 	}
 
 	outFile, _ := os.Create(certFile)
-	pem.Encode(outFile, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	outFile.Close()
+	if err := pem.Encode(outFile, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		log.Fatalf("Failed to write cert: %v", err)
+	}
+	_ = outFile.Close()
 
 	outKey, _ := os.Create(keyFile)
 	b, _ := x509.MarshalECPrivateKey(priv)
-	pem.Encode(outKey, &pem.Block{Type: "EC PRIVATE KEY", Bytes: b})
-	outKey.Close()
+	if err := pem.Encode(outKey, &pem.Block{Type: "EC PRIVATE KEY", Bytes: b}); err != nil {
+		log.Fatalf("Failed to write key: %v", err)
+	}
+	_ = outKey.Close()
 }

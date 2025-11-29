@@ -73,6 +73,7 @@ export const WritePad = ({
     extensions.push(
       Collaboration.configure({
         document: collaborationDoc,
+        // No need to specify field - we relay raw Y.js updates now
       })
     );
 
