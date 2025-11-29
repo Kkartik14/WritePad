@@ -4,39 +4,40 @@ import { DocSyncProvider } from './DocSyncProvider';
 export class YjsDocSyncBridge {
     private doc: Y.Doc;
     private provider: DocSyncProvider;
+    private updateHandler: (update: Uint8Array, origin: any) => void;
 
     constructor(doc: Y.Doc, provider: DocSyncProvider) {
+        console.log('[Bridge] Creating YjsDocSyncBridge');
+        console.log('[Bridge] Doc clientID:', doc.clientID);
         this.doc = doc;
         this.provider = provider;
+        this.updateHandler = this.handleUpdate.bind(this);
         this.setupObservers();
+        console.log('[Bridge] Bridge initialized and observing Y.Doc updates');
     }
 
     private setupObservers() {
-        // Observe shared types to route updates to specific streams
+        // Listen to ALL Y.Doc updates (works with any Y.js type: Text, XmlFragment, etc.)
+        console.log('[Bridge] Setting up Y.Doc update observer');
+        this.doc.on('update', this.updateHandler);
+    }
 
-        // Text updates -> Stream 1
-        const ytext = this.doc.getText('codemirror'); // Main text content
-        ytext.observe((event) => {
-            // In a real implementation, we'd calculate the delta and send it
-            // For now, Y.js updates are opaque blobs, so we rely on the doc.on('update')
-            // in the provider to catch everything.
+    private handleUpdate(update: Uint8Array, origin: any) {
+        console.log('[Bridge] Y.Doc update event! Origin:', origin, 'Update size:', update.byteLength);
+        
+        // Ignore updates from the provider (remote updates we applied)
+        if (origin === this.provider) {
+            console.log('[Bridge] Ignoring remote update (origin is provider)');
+            return;
+        }
 
-            // However, if we want to segregate streams, we need to know WHICH type changed.
-            // Y.js updates are bundled.
+        console.log('[Bridge] Sending local Y.js update via DocSync');
+        // Send raw Y.js update with opCode 0x00 prefix
+        this.provider.sendYjsUpdate(update);
+    }
 
-            // Strategy:
-            // 1. Listen to 'update' on doc (global)
-            // 2. Decode update to see what changed (expensive in JS)
-            // OR
-            // 3. Just send all Y.js updates to Stream 1 for now (MVP)
-
-            // The architecture plan says:
-            // Stream 1: Text Operations (High priority, reliable)
-            // Stream 2: Formatting (Medium priority, reliable)
-            // Stream 3: Structure (Low priority, reliable)
-
-            // To truly separate them, we'd need to use separate Y.Docs or subdocs,
-            // or manually construct the binary protocol messages from the observer events.
-        });
+    destroy() {
+        console.log('[Bridge] Destroying YjsDocSyncBridge');
+        this.doc.off('update', this.updateHandler);
     }
 }

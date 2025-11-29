@@ -39,6 +39,7 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
 
     const docRef = useRef<Y.Doc>(new Y.Doc());
     const providerRef = useRef<WebsocketProvider | any>(null);
+    const bridgeRef = useRef<any>(null);
     const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
@@ -55,12 +56,13 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
 
         // Try WebTransport first (experimental)
         // We assume WebTransport server is on port 4433 as per our backend setup
-        const wtUrl = 'https://localhost:4433';
+        const wtUrl = 'https://127.0.0.1:4433';
 
         const connectWebTransport = async () => {
             try {
                 // Dynamic import to avoid SSR issues if any
                 const { DocSyncProvider } = await import('../lib/DocSyncProvider');
+                const { YjsDocSyncBridge } = await import('../lib/YjsDocSyncBridge');
 
                 // Fetch cert hash to bypass browser flag requirement
                 let options;
@@ -85,12 +87,17 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
                 }
 
                 console.log('Attempting WebTransport connection...');
+                console.log('DEBUG: WebTransport Options:', options);
                 const provider = new DocSyncProvider(wtUrl, roomID, doc, options);
                 await provider.connect();
 
                 if (provider.connected) {
                     console.log('WebTransport connected successfully');
+                    console.log('[CollabProvider] Creating YjsDocSyncBridge...');
+                    console.log('[CollabProvider] Doc clientID:', doc.clientID);
                     providerRef.current = provider;
+                    bridgeRef.current = new YjsDocSyncBridge(doc, provider);
+                    console.log('[CollabProvider] Bridge created successfully');
                     setProtocol('WebTransport (QUIC)');
                     setStatus('connected');
                     return true;
@@ -104,8 +111,10 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
         const connectWebSocket = () => {
             // Determine WS scheme based on API URL
             const scheme = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
-            const wsUrl = apiUrl.replace(/^http:/, scheme).replace(/^https:/, scheme) + '/collab/' + roomID;
-            console.log('Connecting via WebSocket:', wsUrl);
+            // y-websocket automatically appends the room ID, so we just provide the base URL
+            const wsUrl = apiUrl.replace(/^http:/, scheme).replace(/^https:/, scheme) + '/collab';
+            console.log('DEBUG: CollaborationProvider v2 - Connecting via WebSocket:', wsUrl);
+            console.log('DEBUG: Room ID:', roomID);
 
             const provider = new WebsocketProvider(wsUrl, roomID, doc, {
                 connect: true,
@@ -132,6 +141,13 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
             if (!success) connectWebSocket();
         });
 
+        // Debug: Expose doc to window
+        // @ts-ignore
+        window.testSync = () => {
+            console.log('Testing sync manually...');
+            doc.getText('codemirror').insert(0, 'TEST');
+        };
+
 
         // Nerd Stats Logic
         doc.on('update', (update: Uint8Array, origin: unknown) => {
@@ -155,6 +171,10 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
                 // Handle different destroy methods
                 if (providerRef.current.destroy) providerRef.current.destroy();
                 // if (providerRef.current.disconnect) providerRef.current.disconnect();
+            }
+            if (bridgeRef.current) {
+                bridgeRef.current.destroy();
+                bridgeRef.current = null;
             }
             if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
             setStatus('disconnected');

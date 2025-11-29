@@ -31,9 +31,6 @@ func (r *Room) Run() {
 			log.Printf("[INFO] Client (ID: %s) joined room %s via %s. Total clients: %d",
 				client.ID, r.ID, client.Protocol, len(r.Clients))
 
-			// Send initial stats
-			r.BroadcastStats()
-
 		case client := <-r.Unregister:
 			r.mu.Lock()
 			if _, ok := r.Clients[client]; ok {
@@ -61,24 +58,6 @@ func (r *Room) Run() {
 			if len(r.Clients) > 0 {
 				log.Printf("[DEBUG] Room %s: %d clients active", r.ID, len(r.Clients))
 			}
-		}
-	}
-}
-
-// BroadcastStats sends telemetry to all clients
-func (r *Room) BroadcastStats() {
-	// This is a placeholder for stats broadcasting
-	// In the future, we'll send binary stats messages
-	statsMsg := []byte(`{"type":"stats","clients":` + string(rune(len(r.Clients))) + `}`)
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for client := range r.Clients {
-		select {
-		case client.Send <- statsMsg:
-		default:
-			// Client send buffer full, skip
 		}
 	}
 }

@@ -4,6 +4,9 @@ import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
 import Strike from '@tiptap/extension-strike';
+import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
+import { useCollaboration } from '../CollaborationProvider';
 import { Toolbar } from './Toolbar';
 
 interface EditorProps {
@@ -13,9 +16,24 @@ interface EditorProps {
 }
 
 export const Editor = ({ initialContent = '<p></p>', onChange, onEditorReady }: EditorProps) => {
+  const { doc, provider, status } = useCollaboration();
+
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        history: false, // Disable history because Collaboration handles it
+      }),
+      Collaboration.configure({
+        document: doc,
+        field: 'codemirror', // Must match the field used in YjsDocSyncBridge
+      }),
+      CollaborationCursor.configure({
+        provider: provider,
+        user: {
+          name: 'User ' + Math.floor(Math.random() * 100),
+          color: '#ffb61e',
+        },
+      }),
       TextAlign.configure({
         types: ['heading', 'paragraph'],
         alignments: ['left', 'center', 'right'],

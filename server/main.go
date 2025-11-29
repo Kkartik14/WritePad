@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -140,11 +141,14 @@ func generateCert(certFile, keyFile string) {
 			Organization: []string{"WritePad Dev"},
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 365),
+		// WebTransport with serverCertificateHashes requires short-lived certs (max 14 days)
+		NotAfter: time.Now().Add(time.Hour * 24 * 10),
 
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
+		DNSNames:              []string{"localhost"},
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
