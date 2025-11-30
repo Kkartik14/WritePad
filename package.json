@@ -1,24 +1,32 @@
 {
-  "name": "writepad",
+  "name": "writepad-monorepo",
   "version": "0.1.0",
-  "description": "A Notion-like rich text editor with tabs, built with Next.js and TipTap",
-  "private": false,
-  "author": "WritePad Team",
+  "description": "WritePad - Real-time collaborative editor showcasing y-webtransport",
+  "private": true,
+  "author": "Kartik Gupta",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/writepad"
+    "url": "https://github.com/kartikgupta/writepad"
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "keywords": [
     "editor",
     "document",
     "rich-text",
     "next.js",
     "tiptap",
-    "tabs",
-    "notion"
+    "webtransport",
+    "yjs",
+    "crdt",
+    "collaboration",
+    "realtime"
   ],
   "scripts": {
+    "build:packages": "npm run build --workspace=packages/y-webtransport",
+    "dev:packages": "npm run dev --workspace=packages/y-webtransport",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -47,7 +55,8 @@
     "slate-history": "^0.113.1",
     "slate-react": "^0.114.2",
     "y-websocket": "^3.0.0",
-    "yjs": "^13.6.27"
+    "yjs": "^13.6.27",
+    "yjs-webtransport": "^0.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

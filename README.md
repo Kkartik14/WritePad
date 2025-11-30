@@ -1,144 +1,110 @@
 # WritePad
 
-WritePad is an open-source rich text editor built with Next.js, TipTap, and Tailwind CSS. It provides a clean, intuitive interface for document creation and editing.
+> Real-time collaborative text editor using WebTransport and QUIC.
 
-## Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-- Modern rich text editing
-- Comprehensive formatting options:
-  - Text styling (bold, italic, underline, strikethrough)
-  - Headings (H1, H2)
-  - Lists (ordered and unordered)
-  - Blockquotes and code blocks
-  - Text alignment controls
-- Notion-like tabbed interface:
-  - Create multiple documents in tabs
-  - Switch between tabs with a single click
-  - Start with a clean slate (no placeholder text)
-  - Automatic cursor focus when switching tabs
-  - Rename tabs with double-click
-  - Add and delete tabs as needed
-  - Persistent tabs saved to localStorage
-- Document management:
-  - Save documents locally
-  - Open saved documents
-  - Export in multiple formats (HTML, Plain Text, Markdown)
-- AI-Powered Document Templates:
-  - Generate document templates by describing what you need
-  - Powered by Llama-3.3-70b model via Groq API
-  - Get started quickly with AI-generated structure
-- Keyboard shortcuts for all formatting options
-- Word count tracking
-- Clean, responsive UI
-- Built with modern web technologies
+## What Is This?
+
+WritePad is a collaborative text editor that uses **WebTransport** instead of WebSocket for real-time synchronization. This enables:
+
+- **19ms round-trip latency** for cursor updates
+- **QUIC unreliable datagrams** for cursor sync (no head-of-line blocking)
+- **QUIC reliable streams** for document sync
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                           WritePad                                   │
+│                                                                      │
+│   Browser A                   Server (Go)              Browser B     │
+│   ┌─────────┐                ┌─────────┐              ┌─────────┐   │
+│   │ Next.js │◄──WebTransport─│  QUIC   │─WebTransport►│ Next.js │   │
+│   │ + Y.js  │                │  Relay  │              │ + Y.js  │   │
+│   │ + TipTap│                │         │              │ + TipTap│   │
+│   └─────────┘                └─────────┘              └─────────┘   │
+│                                                                      │
+│   Document edits ──► QUIC Stream (reliable) ──► Other users         │
+│   Cursor moves ──► QUIC Datagram (unreliable) ──► Other users       │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ## Tech Stack
 
-- [Next.js](https://nextjs.org/) - React framework
-- [TypeScript](https://www.typescriptlang.org/) - Type-safe JavaScript
-- [TipTap](https://tiptap.dev/) - Headless editor framework
-- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
-- [Lucide React](https://lucide.dev/) - Beautiful & consistent icons
+### Frontend
+- **Next.js 14** — React framework
+- **TipTap** — Rich text editor
+- **Y.js** — CRDT for collaboration
+- **Tailwind CSS** — Styling
 
-## Getting Started
+### Backend
+- **Go** — Server language
+- **quic-go** — QUIC implementation
+- **webtransport-go** — WebTransport server
 
-First, install the dependencies:
+## Project Structure
+
+```
+WritePad/
+├── src/                    # Next.js frontend
+│   ├── app/               # App router
+│   └── components/        # React components
+│       ├── Editor/        # TipTap editor
+│       └── ...
+├── server/                # Go WebTransport server
+│   ├── main.go           # Server code (~400 lines)
+│   ├── go.mod
+│   └── README.md         # Deployment guide
+└── package.json
+```
+
+## Quick Start
+
+### 1. Run the Frontend
 
 ```bash
 npm install
-# or
-yarn install
-# or
-pnpm install
+npm run dev
 ```
 
-For AI template generation feature, you'll need a Groq API key:
-
-1. Create an account at [Groq](https://console.groq.com)
-2. Get your API key from the console
-3. Create a `.env.local` file in the root of the project with:
-   ```
-   GROQ_API_KEY=your_groq_api_key_here
-   ```
-
-Then, run the development server:
+### 2. Run the Server
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+cd server
+go run .
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+See [server/README.md](./server/README.md) for TLS certificate setup.
 
-## Keyboard Shortcuts
+## Benchmark Results
 
-WritePad offers a comprehensive set of keyboard shortcuts for efficient editing:
+Tested over real network (India → Oracle Cloud):
 
-| Action | Shortcut |
-|--------|----------|
-| Bold | Ctrl/⌘ + B |
-| Italic | Ctrl/⌘ + I |
-| Underline | Ctrl/⌘ + U |
-| Strikethrough | Ctrl/⌘ + Shift + X |
-| Heading 1 | Ctrl/⌘ + Alt + 1 |
-| Heading 2 | Ctrl/⌘ + Alt + 2 |
-| Ordered List | Ctrl/⌘ + Shift + 7 |
-| Bullet List | Ctrl/⌘ + Shift + 8 |
-| Blockquote | Ctrl/⌘ + Shift + B |
-| Code Block | Ctrl/⌘ + Shift + C |
-| Align Left | Ctrl/⌘ + Shift + L |
-| Align Center | Ctrl/⌘ + Shift + E |
-| Align Right | Ctrl/⌘ + Shift + R |
+| Metric | Value |
+|--------|-------|
+| Average RTT | 19.4ms |
+| P50 | 17.7ms |
+| P99 | 46.1ms |
+| Delivery | 99.8% |
 
-## Using Tabs
+## Related Packages
 
-WritePad features a Notion-like tabbed interface that allows you to:
+This project led to the creation of two open-source packages:
 
-1. **Create new tabs** - Click the "+" button to add a new tab
-2. **Switch between tabs** - Click on any tab to view its content
-3. **Start fresh** - New tabs begin with a clean slate and auto-focus the cursor
-4. **Rename tabs** - Double-click on a tab name to edit it
-5. **Delete tabs** - Click the "X" on any tab to remove it (at least one tab will always remain)
-6. **Work across sessions** - Tabs and their content are automatically saved to localStorage
+- **[yjs-webtransport](https://www.npmjs.com/package/yjs-webtransport)** — WebTransport provider for Y.js
+- **[y-webtransport-go](https://github.com/Kkartik14/y-webtransport-go)** — Go WebTransport server
 
-Each tab maintains its own separate content and title, allowing you to work on multiple documents simultaneously without losing your work.
+## Browser Support
 
-## Exporting Documents
-
-WritePad allows you to export your documents in multiple formats:
-
-1. **HTML** - Export with basic styling for web use
-2. **Plain Text** - Export as simple text without formatting
-3. **Markdown** - Export in Markdown format for use in other applications
-
-Click the "Export" button in the document manager to access these options.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-## Deployment
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new) from the creators of Next.js.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-### Development Guidelines
-
-1. Ensure all code is properly typed with TypeScript
-2. Follow the existing component structure
-3. Use Tailwind CSS for styling
-4. Write meaningful commit messages
-5. Update documentation as necessary
+| Browser | Support |
+|---------|---------|
+| Chrome | ✅ 97+ |
+| Edge | ✅ 97+ |
+| Firefox | ✅ 114+ |
+| Safari | ⏳ Coming soon |
 
 ## License
 
-This project is open source and available under the [MIT License](LICENSE).
+MIT © Kartik Gupta

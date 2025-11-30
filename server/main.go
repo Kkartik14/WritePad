@@ -1,144 +1,427 @@
 package main
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
+	"context"
+	"crypto/tls"
+	"io"
 	"log"
-	"math/big"
 	"net/http"
 	"os"
-	"time"
+	"sync"
+	"sync/atomic"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	"github.com/joho/godotenv"
+	"github.com/quic-go/quic-go/http3"
+	"github.com/quic-go/webtransport-go"
 )
 
+// ============ Configuration ============
+
+var (
+	httpPort   = getEnv("HTTP_PORT", "8080")
+	quicPort   = getEnv("QUIC_PORT", "4433")
+	certFile   = getEnv("CERT_FILE", "localhost.pem")
+	keyFile    = getEnv("KEY_FILE", "localhost.key")
+	domainName = getEnv("DOMAIN", "localhost")
+)
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// ============ Main ============
+
 func main() {
-	// Load .env file if it exists (for local dev)
-	// We'll look for it in the parent directory since that's where the Next.js .env.local is,
-	// or you can copy it to the server directory. For now, let's try reading from parent or current.
-	if err := godotenv.Load("../.env.local"); err != nil {
-		log.Println("No ../.env.local file found, trying .env")
-		godotenv.Load()
-	}
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	hub := NewHub()
 
-	r := chi.NewRouter()
-
-	// Middleware
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-
-	// CORS configuration
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000"}, // Allow Next.js frontend
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
-	}))
-
-	// Initialize Collaboration Hub
-	hub := NewCollaborationHub()
-
-	// Routes
-	r.Post("/api/generate-template", GenerateTemplateHandler)
-	r.Post("/api/autocomplete", AutocompleteHandler)
-
-	// Collaboration Routes
-	r.Get("/collab/{roomID}", func(w http.ResponseWriter, r *http.Request) {
-		// Negotiate protocol
-		if r.Header.Get("Sec-WebSocket-Protocol") != "" || r.Header.Get("Upgrade") == "websocket" {
-			hub.HandleWebSocket(w, r)
-		} else {
-			// Default to WebTransport attempt (client should send appropriate headers)
-			// For now, we can have separate endpoints or sniff headers.
-			// WebTransport uses a specific CONNECT method in HTTP/3, but in Go's http.Handler
-			// it appears as a standard request we upgrade.
-			hub.HandleWebTransport(w, r)
-		}
-	})
-
-	// Generate self-signed certs for WebTransport (QUIC requires TLS)
-	// In production, use valid certs (Let's Encrypt)
-	certFile := "localhost.pem"
-	keyFile := "localhost-key.pem"
-	if _, err := os.Stat(certFile); os.IsNotExist(err) {
-		log.Println("Generating self-signed certificates for WebTransport...")
-		generateCert(certFile, keyFile)
-	}
-
-	log.Printf("Server starting on port %s (HTTP/3 + HTTP/2 + HTTP/1.1)", port)
-
-	// We need to start a server that supports both TCP (HTTP/1, HTTP/2) and UDP (HTTP/3 for WebTransport)
-	// The quic-go/webtransport-go library helps, but standard http.ListenAndServeTLS is TCP only.
-	// For a true hybrid on the same port, we need a bit more setup, but for dev simplicity:
-	// We will run the standard HTTP server for WS and API, and a separate QUIC server if needed,
-	// OR use a library that multiplexes.
-
-	// Ideally, we use `http3.ListenAndServeQUIC` for QUIC and `http.ListenAndServeTLS` for TCP.
-	// For this MVP, let's just use ListenAndServeTLS which supports HTTP/2, and we'll see if we can attach QUIC.
-	// Actually, webtransport-go works on top of an http.Server.
-
-	// Simplified approach: Run standard TLS server.
-	// Note: WebTransport strictly requires HTTP/3 (QUIC).
-	// We will need to run the QUIC server alongside.
-
+	// Start WebTransport server (QUIC/HTTP3)
 	go func() {
-		// Start QUIC server for WebTransport
-		// This is a placeholder for the actual QUIC listener setup which is more verbose.
-		// For now, let's stick to the standard TLS server which handles WebSocket perfectly.
-		// To truly enable WebTransport, we would need `github.com/quic-go/quic-go/http3`.
-		// Let's add that dependency next if this fails.
+		log.Printf("Starting WebTransport server on :%s", quicPort)
+		if err := startWebTransportServer(hub); err != nil {
+			log.Fatalf("WebTransport server error: %v", err)
+		}
 	}()
 
-	if err := http.ListenAndServeTLS(":"+port, certFile, keyFile, r); err != nil {
-		log.Fatal(err)
+	// Start HTTPS server (WebSocket fallback + health check)
+	log.Printf("Starting HTTPS server on :%s", httpPort)
+	if err := startHTTPSServer(hub); err != nil {
+		log.Fatalf("HTTPS server error: %v", err)
 	}
 }
 
-// Helper to generate self-signed certs
-func generateCert(certFile, keyFile string) {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		log.Fatalf("Failed to generate private key: %v", err)
-	}
+// ============ WebTransport Server ============
 
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			Organization: []string{"WritePad Dev"},
+func startWebTransportServer(hub *Hub) error {
+	// Verify certificates exist and are readable
+	if _, err := os.Stat(certFile); err != nil {
+		log.Printf("[WT] ERROR: Cannot read cert file %s: %v", certFile, err)
+		return err
+	}
+	if _, err := os.Stat(keyFile); err != nil {
+		log.Printf("[WT] ERROR: Cannot read key file %s: %v", keyFile, err)
+		return err
+	}
+	log.Printf("[WT] Certificates loaded from %s", certFile)
+
+	wt := webtransport.Server{
+		H3: http3.Server{
+			Addr: "0.0.0.0:" + quicPort, // Bind to IPv4 explicitly
 		},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 365),
-
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
+		CheckOrigin: func(r *http.Request) bool {
+			log.Printf("[WT] CheckOrigin called from: %s", r.RemoteAddr)
+			return true // Allow all origins
+		},
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[WT] Request received: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+
+		// Handle health check
+		if r.URL.Path == "/health" {
+			w.Write([]byte("ok"))
+			return
+		}
+
+		// Extract room ID
+		roomID := "default"
+		if len(r.URL.Path) > len("/collab/") && r.URL.Path[:7] == "/collab" {
+			roomID = r.URL.Path[8:]
+		}
+		if roomID == "" {
+			roomID = "default"
+		}
+
+		log.Printf("[WT] Connection request for room: %s from %s", roomID, r.RemoteAddr)
+
+		session, err := wt.Upgrade(w, r)
+		if err != nil {
+			log.Printf("[WT] Upgrade failed: %v", err)
+			return
+		}
+
+		room := hub.GetOrCreateRoom(roomID)
+		client := NewClient(room)
+		room.Register <- client
+
+		handleSession(session, client, room)
+	})
+
+	wt.H3.Handler = mux
+
+	log.Printf("[WT] WebTransport server starting on :%s with cert %s", quicPort, certFile)
+	return wt.ListenAndServeTLS(certFile, keyFile)
+}
+
+// ============ HTTPS Server ============
+
+func startHTTPSServer(hub *Hub) error {
+	mux := http.NewServeMux()
+
+	// Health check
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok","webtransport":"wss://` + domainName + `:` + quicPort + `"}`))
+	})
+
+	// CORS preflight
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.Write([]byte("y-webtransport server. WebTransport available on port " + quicPort))
+	})
+
+	server := &http.Server{
+		Addr:    ":" + httpPort,
+		Handler: mux,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		},
+	}
+
+	return server.ListenAndServeTLS(certFile, keyFile)
+}
+
+// ============ Session Handler ============
+
+func handleSession(session *webtransport.Session, client *Client, room *Room) {
+	defer func() {
+		room.Unregister <- client
+		session.CloseWithError(0, "session closed")
+		log.Printf("[WT] Session closed for client %d", client.ID)
+	}()
+
+	ctx := context.Background()
+	var wg sync.WaitGroup
+
+	// Handle incoming streams
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		handleStreams(ctx, session, client, room)
+	}()
+
+	// Handle incoming datagrams
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		handleDatagrams(ctx, session, client, room)
+	}()
+
+	// Handle outgoing messages
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		handleOutgoing(ctx, session, client)
+	}()
+
+	// Wait for session to close
+	<-session.Context().Done()
+	wg.Wait()
+}
+
+func handleStreams(ctx context.Context, session *webtransport.Session, client *Client, room *Room) {
+	for {
+		stream, err := session.AcceptStream(ctx)
+		if err != nil {
+			return
+		}
+
+		go func(s *webtransport.Stream) {
+			defer s.Close()
+
+			// Read stream type
+			typeBuf := make([]byte, 1)
+			if _, err := io.ReadFull(s, typeBuf); err != nil {
+				return
+			}
+
+			log.Printf("[WT] Stream type 0x%02x from client %d", typeBuf[0], client.ID)
+
+			// Store sync stream for outgoing messages
+			if typeBuf[0] == 0x01 {
+				client.SetSyncStream(s)
+
+				// Send initial sync response (empty sync step 2)
+				// This tells the client "I have no document state, you're synced"
+				// Format: [length_hi, length_lo, msg_type, step_type]
+				// msg_type 0x00 = sync, step_type 0x01 = step 2, followed by 0x00 (empty update)
+				initialSync := []byte{
+					0x00, 0x03, // Length: 3 bytes
+					0x00,       // Message type: sync
+					0x01,       // Sync step 2
+					0x00,       // Empty update (0 structs)
+				}
+				if _, err := s.Write(initialSync); err != nil {
+					log.Printf("[WT] Failed to send initial sync to client %d: %v", client.ID, err)
+				} else {
+					log.Printf("[WT] Sent initial sync step 2 to client %d", client.ID)
+				}
+			}
+
+			// Read and relay messages
+			for {
+				lenBuf := make([]byte, 2)
+				if _, err := io.ReadFull(s, lenBuf); err != nil {
+					return
+				}
+
+				msgLen := int(lenBuf[0])<<8 | int(lenBuf[1])
+				if msgLen == 0 || msgLen > 65535 {
+					continue
+				}
+
+				msg := make([]byte, msgLen)
+				if _, err := io.ReadFull(s, msg); err != nil {
+					return
+				}
+
+				log.Printf("[WT] Client %d sent %d bytes (type 0x%02x)", client.ID, msgLen, msg[0])
+
+				// Frame and broadcast
+				framed := make([]byte, 2+msgLen)
+				framed[0] = byte(msgLen >> 8)
+				framed[1] = byte(msgLen)
+				copy(framed[2:], msg)
+
+				room.Broadcast <- &Message{Data: framed, Sender: client}
+			}
+		}(stream)
+	}
+}
+
+func handleDatagrams(ctx context.Context, session *webtransport.Session, client *Client, room *Room) {
+	for {
+		data, err := session.ReceiveDatagram(ctx)
 	if err != nil {
-		log.Fatalf("Failed to create certificate: %v", err)
+			return
+		}
+
+		// Echo back 8-byte pings for latency measurement
+		if len(data) == 8 {
+			_ = session.SendDatagram(data)
+		}
+
+		// Broadcast to others
+		room.BroadcastDatagram(data, client)
+	}
+}
+
+func handleOutgoing(ctx context.Context, session *webtransport.Session, client *Client) {
+	for {
+		select {
+		case msg, ok := <-client.Send:
+			if !ok {
+				return
+			}
+			stream := client.GetSyncStream()
+			if stream != nil {
+				stream.Write(msg)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// ============ Hub ============
+
+type Hub struct {
+	rooms map[string]*Room
+	mu    sync.RWMutex
+}
+
+func NewHub() *Hub {
+	return &Hub{rooms: make(map[string]*Room)}
+}
+
+func (h *Hub) GetOrCreateRoom(id string) *Room {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if room, ok := h.rooms[id]; ok {
+		return room
 	}
 
-	outFile, _ := os.Create(certFile)
-	pem.Encode(outFile, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	outFile.Close()
+	room := NewRoom(id)
+	h.rooms[id] = room
+	go room.Run()
+	return room
+}
 
-	outKey, _ := os.Create(keyFile)
-	b, _ := x509.MarshalECPrivateKey(priv)
-	pem.Encode(outKey, &pem.Block{Type: "EC PRIVATE KEY", Bytes: b})
-	outKey.Close()
+// ============ Room ============
+
+type Room struct {
+	ID         string
+	clients    map[*Client]bool
+	Register   chan *Client
+	Unregister chan *Client
+	Broadcast  chan *Message
+	mu         sync.RWMutex
+}
+
+type Message struct {
+	Data   []byte
+	Sender *Client
+}
+
+func NewRoom(id string) *Room {
+	return &Room{
+		ID:         id,
+		clients:    make(map[*Client]bool),
+		Register:   make(chan *Client),
+		Unregister: make(chan *Client),
+		Broadcast:  make(chan *Message, 256),
+	}
+}
+
+func (r *Room) Run() {
+	for {
+		select {
+		case client := <-r.Register:
+			r.mu.Lock()
+			r.clients[client] = true
+			r.mu.Unlock()
+			log.Printf("[Room %s] Client %d joined, total: %d", r.ID, client.ID, len(r.clients))
+
+		case client := <-r.Unregister:
+			r.mu.Lock()
+			if _, ok := r.clients[client]; ok {
+				delete(r.clients, client)
+				close(client.Send)
+			}
+			r.mu.Unlock()
+			log.Printf("[Room %s] Client %d left, total: %d", r.ID, client.ID, len(r.clients))
+
+		case msg := <-r.Broadcast:
+			r.mu.RLock()
+			for client := range r.clients {
+				if client == msg.Sender {
+					continue
+				}
+				select {
+				case client.Send <- msg.Data:
+				default:
+				}
+			}
+			r.mu.RUnlock()
+		}
+	}
+}
+
+func (r *Room) BroadcastDatagram(data []byte, sender *Client) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for client := range r.clients {
+		if client == sender || client.sendDatagram == nil {
+			continue
+		}
+		client.sendDatagram(data)
+	}
+}
+
+// ============ Client ============
+
+var clientIDCounter uint64
+
+type Client struct {
+	ID           uint64
+	Room         *Room
+	Send         chan []byte
+	sendDatagram func([]byte)
+	syncStream   *webtransport.Stream
+	streamMu     sync.Mutex
+}
+
+func NewClient(room *Room) *Client {
+	return &Client{
+		ID:   atomic.AddUint64(&clientIDCounter, 1),
+		Room: room,
+		Send: make(chan []byte, 256),
+	}
+}
+
+func (c *Client) SetSyncStream(s *webtransport.Stream) {
+	c.streamMu.Lock()
+	c.syncStream = s
+	c.streamMu.Unlock()
+}
+
+func (c *Client) GetSyncStream() *webtransport.Stream {
+	c.streamMu.Lock()
+	defer c.streamMu.Unlock()
+	return c.syncStream
 }

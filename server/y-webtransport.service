@@ -1,0 +1,28 @@
+[Unit]
+Description=y-webtransport Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/y-webtransport
+ExecStart=/opt/y-webtransport/server
+Restart=always
+RestartSec=5
+
+# Environment
+Environment=HTTP_PORT=443
+Environment=QUIC_PORT=4433
+Environment=CERT_FILE=/etc/letsencrypt/live/webtransport.awaken-labs.com/fullchain.pem
+Environment=KEY_FILE=/etc/letsencrypt/live/webtransport.awaken-labs.com/privkey.pem
+Environment=DOMAIN=webtransport.awaken-labs.com
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/y-webtransport
+
+[Install]
+WantedBy=multi-user.target
+
