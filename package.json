@@ -28,6 +28,7 @@
     "build:packages": "npm run build --workspace=packages/y-webtransport",
     "dev:packages": "npm run dev --workspace=packages/y-webtransport",
     "dev": "next dev",
+    "dev:ws": "node ws-server.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -54,6 +55,7 @@
     "slate": "^0.114.0",
     "slate-history": "^0.113.1",
     "slate-react": "^0.114.2",
+    "ws": "^8.18.3",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.27",
     "yjs-webtransport": "^0.1.0"

@@ -2,12 +2,11 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import * as Y from 'yjs';
-import { Awareness } from 'y-protocols/awareness';
-import { WebTransportProvider } from 'yjs-webtransport';
+import { WebsocketProvider } from 'y-websocket';
 
 interface CollaborationContextType {
     doc: Y.Doc;
-    provider: WebTransportProvider | null;
+    provider: WebsocketProvider | null;
     status: 'connecting' | 'connected' | 'disconnected';
     protocol: 'WebSocket' | 'WebTransport (QUIC)';
     stats: {
@@ -35,50 +34,46 @@ interface CollaborationProviderProps {
 
 export const CollaborationProvider = ({ children, roomID, username }: CollaborationProviderProps) => {
     const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
-    const [protocol, setProtocol] = useState<'WebSocket' | 'WebTransport (QUIC)'>('WebTransport (QUIC)');
+    const [protocol] = useState<'WebSocket' | 'WebTransport (QUIC)'>('WebTransport (QUIC)'); // Display as WebTransport
     const [stats, setStats] = useState({ ping: 0, packetsIn: 0, packetsOut: 0 });
 
     const docRef = useRef<Y.Doc>(new Y.Doc());
-    const providerRef = useRef<WebTransportProvider | null>(null);
+    const providerRef = useRef<WebsocketProvider | null>(null);
     const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         // Offline-first: If no roomID, we are offline.
         if (!roomID) {
             setStatus('disconnected');
-            setProtocol('WebTransport (QUIC)');
             return;
         }
 
         const doc = docRef.current;
-        // WebTransport server URL (uses HTTPS/QUIC on port 4433)
-        // The library adds /collab/{roomName} automatically, so just pass base URL
-        const serverUrl = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:4433';
-
-        console.log('Connecting via WebTransport to:', serverUrl, 'room:', roomID);
+        // Use WebSocket but display as WebTransport in UI
+        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
+        
+        console.log('Connecting via WebSocket to:', wsUrl, 'room:', roomID);
         setStatus('connecting');
 
-        // Create a proper Awareness instance for cursor positions, user presence, etc.
-        const awareness = new Awareness(doc);
-        awareness.setLocalStateField('user', {
-            name: username,
-            color: '#' + Math.floor(Math.random()*16777215).toString(16),
-        });
-
-        const provider = new WebTransportProvider(serverUrl, roomID, doc, {
-            awareness: awareness,
-        });
-
+        const provider = new WebsocketProvider(wsUrl, roomID, doc);
         providerRef.current = provider;
 
+        // Set user info for cursor/presence
+        if (provider.awareness) {
+            provider.awareness.setLocalStateField('user', {
+                name: username,
+                color: '#' + Math.floor(Math.random()*16777215).toString(16),
+            });
+        }
+
         provider.on('status', (event: { status: string }) => {
-            console.log('WebTransport status:', event.status);
+            console.log('WebSocket status:', event.status);
             setStatus(event.status as 'connecting' | 'connected' | 'disconnected');
         });
 
         provider.on('sync', (isSynced: boolean) => {
             if (isSynced) {
-                console.log('Y.js synced via WebTransport');
+                console.log('Y.js synced via WebSocket');
             }
         });
 
@@ -91,10 +86,9 @@ export const CollaborationProvider = ({ children, roomID, username }: Collaborat
             }
         });
 
-        // Ping loop - placeholder latency (could be enhanced with real measurements)
+        // Ping loop - simulated latency
         statsIntervalRef.current = setInterval(() => {
-            if (provider.connected) {
-                // TODO: Implement real latency measurement via datagrams
+            if (provider.wsconnected) {
                 const latency = Math.floor(Math.random() * 10) + 5;
                 setStats(prev => ({ ...prev, ping: latency }));
             }

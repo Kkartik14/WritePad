@@ -14,6 +14,13 @@ import (
 	"github.com/quic-go/webtransport-go"
 )
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // ============ Configuration ============
 
 var (
@@ -116,7 +123,7 @@ func startWebTransportServer(hub *Hub) error {
 
 	log.Printf("[WT] WebTransport server starting on :%s with cert %s", quicPort, certFile)
 	return wt.ListenAndServeTLS(certFile, keyFile)
-}
+	}
 
 // ============ HTTPS Server ============
 
@@ -213,22 +220,6 @@ func handleStreams(ctx context.Context, session *webtransport.Session, client *C
 			// Store sync stream for outgoing messages
 			if typeBuf[0] == 0x01 {
 				client.SetSyncStream(s)
-
-				// Send initial sync response (empty sync step 2)
-				// This tells the client "I have no document state, you're synced"
-				// Format: [length_hi, length_lo, msg_type, step_type]
-				// msg_type 0x00 = sync, step_type 0x01 = step 2, followed by 0x00 (empty update)
-				initialSync := []byte{
-					0x00, 0x03, // Length: 3 bytes
-					0x00,       // Message type: sync
-					0x01,       // Sync step 2
-					0x00,       // Empty update (0 structs)
-				}
-				if _, err := s.Write(initialSync); err != nil {
-					log.Printf("[WT] Failed to send initial sync to client %d: %v", client.ID, err)
-				} else {
-					log.Printf("[WT] Sent initial sync step 2 to client %d", client.ID)
-				}
 			}
 
 			// Read and relay messages
@@ -248,7 +239,7 @@ func handleStreams(ctx context.Context, session *webtransport.Session, client *C
 					return
 				}
 
-				log.Printf("[WT] Client %d sent %d bytes (type 0x%02x)", client.ID, msgLen, msg[0])
+				log.Printf("[WT] Client %d sent %d bytes (type 0x%02x): %x", client.ID, msgLen, msg[0], msg[:min(msgLen, 20)])
 
 				// Frame and broadcast
 				framed := make([]byte, 2+msgLen)
@@ -256,6 +247,7 @@ func handleStreams(ctx context.Context, session *webtransport.Session, client *C
 				framed[1] = byte(msgLen)
 				copy(framed[2:], msg)
 
+				log.Printf("[WT] Broadcasting %d bytes to room %s (excluding sender %d)", len(framed), room.ID, client.ID)
 				room.Broadcast <- &Message{Data: framed, Sender: client}
 			}
 		}(stream)
